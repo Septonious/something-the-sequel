@@ -314,6 +314,8 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     CloudWeather weather = CloudGetWeather();
     float bottom = weather.height;
     float top = weather.height + weather.thickness;
+    float cameraBodyHeight = (cameraPosition.y - bottom) / CloudBodyThickness(weather);
+    float insideCloudLayer = smoothstep(0.0, 0.1, cameraBodyHeight) * (1.0 - smoothstep(0.9, 1.0, cameraBodyHeight));
     float sceneDistance = VC_CLOUD_MAX_DISTANCE;
     if (z0 < 0.999999) sceneDistance = min(sceneDistance, length(ToView(vec3(texCoord, z0))));
 
@@ -337,6 +339,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     float sourceStepAtBase = rayLength * verticalScale / float(VC_CLOUD_STEPS);
     float stepCoeff = 0.45 + clamp(sourceStepAtBase / baseSourceStep - 1.1, 0.0, 2.6) * 0.5;
     int steps = clamp(int(float(VC_CLOUD_STEPS) * stepCoeff), 12, VC_CLOUD_MAX_STEPS);
+        steps = clamp(int(rayLength * insideCloudLayer / 16.0), steps, 256);
     float stepLength = rayLength / float(steps);
     float horizontalScale = CloudHorizontalScale(weather);
     float sourceVerticalScale = CloudVerticalScale(weather);
@@ -353,7 +356,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     float firstCloudDistance = VC_CLOUD_MAX_DISTANCE;
     float lastCloudDistance = 0.0;
 
-    for (int i = 0; i < VC_CLOUD_MAX_STEPS; i++) {
+    for (int i = 0; i < 256; i++) {
         if (i >= steps || sampleDistance > rayEnd || transmittance < VC_MIN_TRANSMITTANCE) break;
         float distanceFade = 1.0 - smoothstep(VC_CLOUD_MAX_DISTANCE * 0.25, VC_CLOUD_MAX_DISTANCE, sampleDistance);
         if (distanceFade == 0.0) break;
