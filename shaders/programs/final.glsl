@@ -22,6 +22,9 @@ const int colortex1Format = R11F_G11F_B10F; //Tonemapped / final scene
 const int colortex2Format = RGBA16F; //HDR TAA history
 const int colortex3Format = R11F_G11F_B10F; //HDR TAA-resolved scene
 const int colortex4Format = R11F_G11F_B10F; //Reflections / auxiliary HDR
+const int colortex5Format = RGBA16F;
+const int colortex6Format = RG16F;
+const int colortex7Format = RGBA16;
 */
 
 // Includes //

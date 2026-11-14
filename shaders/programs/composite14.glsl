@@ -11,6 +11,8 @@ in vec2 texCoord;
 uniform sampler2D colortex0;
 uniform sampler2D colortex3;
 
+const bool colortex1Clear = false;
+
 #ifdef OVERWORLD
 uniform int isEyeInWater;
 uniform float wetness;

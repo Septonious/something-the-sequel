@@ -59,10 +59,11 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
     float shadow0 = 0.0;
     vec3 shadowCol = vec3(0.0);    
 
-    float dither = texture2D(noisetex, gl_FragCoord.xy / 512.0).b * TAU;
+    float dither = texture2D(noisetex, gl_FragCoord.xy / 512.0).b;
     #ifdef TAA
          dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
     #endif
+    dither *= TAU;
 
 	float cosTheta = cos(dither);
 	float sinTheta = sin(dither);
@@ -87,9 +88,8 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
         for (int i = 0; i < 4; i++) {
             vec2 shadowOffset = ditherMatrix * offset * 2.0 * shadowOffsets4[i];
 
-            vec3 shadowColSample = texture2D(shadowcolor0, shadowPos.st + shadowOffset).rgb *
-                            texture2DShadow(shadowtex1, vec3(shadowPos.st + shadowOffset, shadowPos.z));
-            shadowCol += shadowColSample;
+            float translucentVisibility = texture2DShadow(shadowtex1, vec3(shadowPos.st + shadowOffset, shadowPos.z));
+            if (translucentVisibility > 0.0) shadowCol += texture2DLod(shadowcolor0, shadowPos.st + shadowOffset, 0.0).rgb * translucentVisibility;
         }
     }
     shadowCol *= 0.25 - wetness * 0.25;

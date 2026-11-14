@@ -56,6 +56,8 @@ uniform mat4 gbufferProjectionInverse;
 
 // Pipeline Options //
 const bool colortex4Clear = false;
+const bool colortex5Clear = false;
+const bool colortex6Clear = false;
 
 // Global Variables //
 #if defined OVERWORLD
@@ -129,7 +131,7 @@ void main() {
 
     //Volumetric Clouds
 	vec4 vc = vec4(0.0);
-	float cloudDepth = VC_DISTANCE;
+	vec2 cloudRange = vec2(VC_DISTANCE);
 
 	float blueNoiseDither = texture2D(noisetex, gl_FragCoord.xy / 512.0).b;
 	#ifdef TAA
@@ -137,7 +139,7 @@ void main() {
 	#endif
 
 	#ifdef VOLUMETRIC_CLOUDS
-	computeVolumetricClouds(vc, atmosphereColor, z0, blueNoiseDither, cloudDepth);
+	computeVolumetricClouds(vc, atmosphereColor, z0, blueNoiseDither, cloudRange);
 	#endif
 
 	//Sky
@@ -185,9 +187,11 @@ void main() {
 	color = mix(color, vc.rgb, vc.a);
 	#endif
 
-    /* DRAWBUFFERS:04 */
+    /* DRAWBUFFERS:0456 */
     gl_FragData[0].rgb = color;
 	gl_FragData[1].rgb = pow(color.rgb, vec3(0.125)) * 0.5;
+	gl_FragData[2] = vc;
+	gl_FragData[3].rg = cloudRange;
 }
 
 #endif

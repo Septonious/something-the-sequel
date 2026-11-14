@@ -301,7 +301,7 @@ vec3 CloudLighting(vec3 sourcePos, float density, CloudWeather weather, vec2 win
 
 // Source-model raymarch, weather, optical transmittance, distance fading and geometry clipping.
 // The incompatible PhysicalSL lighting/exposure are deliberately not used.
-void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, float dither, inout float cloudDepth) {
+void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, float dither, inout vec2 cloudRange) {
     float visibility = caveFactor * (1.0 - blindFactor);
     #if MC_VERSION >= 11900
           visibility *= 1.0 - darknessFactor;
@@ -351,6 +351,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     vec3 scattering = vec3(0.0);
     float transmittance = 1.0;
     float firstCloudDistance = VC_CLOUD_MAX_DISTANCE;
+    float lastCloudDistance = 0.0;
 
     for (int i = 0; i < VC_CLOUD_MAX_STEPS; i++) {
         if (i >= steps || sampleDistance > rayEnd || transmittance < VC_MIN_TRANSMITTANCE) break;
@@ -363,6 +364,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
             float stepOpacity = (1.0 - stepTransmission) * distanceFade;
             if (stepOpacity > 0.0001) {
                 if (firstCloudDistance == VC_CLOUD_MAX_DISTANCE) firstCloudDistance = sampleDistance;
+                lastCloudDistance = sampleDistance;
                 if (!lightingReady) {
                     lighting = CloudPrepareLighting(rayDir, atmosphereColor, weather, horizontalScale, sourceVerticalScale);
                     lightingReady = true;
@@ -378,7 +380,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     float opacity = clamp((1.0 - transmittance) / (1.0 - VC_MIN_TRANSMITTANCE), 0.0, 1.0) * visibility * mix(VC_OPACITY, 1.0, clamp(cameraPosition.y / VC_CLOUD_HEIGHT, 0.0, 1.0));
     vc.a = clamp(opacity, 0.0, 1.0);
     vc.rgb = scattering / max(1.0 - transmittance, 0.0001);
-    if (vc.a > 0.01) cloudDepth = min(cloudDepth, firstCloudDistance);
+    cloudRange = vec2(firstCloudDistance, lastCloudDistance);
 }
 
 #endif

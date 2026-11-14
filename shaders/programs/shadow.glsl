@@ -81,8 +81,8 @@ uniform vec3 cameraPosition;
 writeonly uniform uimage3D voxel_img;
 #endif
 
-uniform mat4 shadowProjection, shadowProjectionInverse;
-uniform mat4 shadowModelView, shadowModelViewInverse;
+uniform mat4 shadowProjectionInverse;
+uniform mat4 shadowModelViewInverse;
 
 // Attributes //
 attribute vec3 at_midBlock;
@@ -111,11 +111,9 @@ void main() {
 	//Color & Position //
 	color = gl_Color;
 
-	vec4 position = shadowModelViewInverse * shadowProjectionInverse * ftransform();
+	gl_Position = ftransform();
 
-	worldPos = position.xyz;
-
-	gl_Position = shadowProjection * shadowModelView * position;
+	worldPos = (shadowModelViewInverse * (shadowProjectionInverse * gl_Position)).xyz;
 
 	float dist = sqrt(gl_Position.x * gl_Position.x + gl_Position.y * gl_Position.y);
 	float distortFactor = dist * shadowMapBias + (1.0 - shadowMapBias);

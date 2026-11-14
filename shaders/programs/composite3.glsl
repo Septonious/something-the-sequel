@@ -14,7 +14,7 @@ uniform sampler2D colortex0;
 #ifdef REFRACTION
 uniform int isEyeInWater;
 uniform float aspectRatio;
-uniform sampler2D colortex3;
+uniform sampler2D colortex7;
 uniform sampler2D depthtex0, depthtex1;
 uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
@@ -35,7 +35,7 @@ void main() {
     float z1 = texture2D(depthtex1, texCoord).r;
 
     if (z1 > z0) {
-        vec3 distort = texture2D(colortex3, texCoord).rgb;
+        vec3 distort = texture2D(colortex7, texCoord).rgb;
 
         if (distort.xy != vec2(0.0)) {
             vec3 viewPos = ToView(vec3(texCoord, z0));
@@ -45,7 +45,7 @@ void main() {
             distort.xy *= vec2(1.0 / aspectRatio, 1.0) * fovScale / max(length(viewPos.xyz), 8.0);
 
             vec2 newCoord = clamp(texCoord + distort.xy, 0.0, 1.0);
-            float distortMask = texture2D(colortex3, newCoord).b;
+            float distortMask = texture2D(colortex7, newCoord).b;
             float water = float(distortMask > 0.79 && distortMask < 0.81);
 
             if (water > 0.0 && z0 > 0.56) {

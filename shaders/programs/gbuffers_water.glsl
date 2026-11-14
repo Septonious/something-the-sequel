@@ -50,6 +50,10 @@ uniform sampler2D texture, noisetex;
 uniform sampler2D gaux1;
 uniform sampler2D depthtex1;
 
+#ifdef VOLUMETRIC_CLOUDS
+uniform sampler2D colortex5, colortex6;
+#endif
+
 uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelView;
@@ -134,6 +138,13 @@ void main() {
     vec3 worldPos = ToWorld(viewPos);
 	vec3 nViewPos = normalize(viewPos);
 	vec2 refraction = vec2(0.0);
+
+	#ifdef VOLUMETRIC_CLOUDS
+	vec4 cloud = texelFetch(colortex5, ivec2(gl_FragCoord.xy), 0);
+	vec2 cloudRange = texelFetch(colortex6, ivec2(gl_FragCoord.xy), 0).rg;
+	float cloudCoverage = cloud.a * clamp((length(viewPos) - cloudRange.x) / max(cloudRange.y - cloudRange.x, 0.0001), 0.0, 1.0);
+	if (cloudCoverage > 0.999) discard;
+	#endif
 
 	float portal = float(mat == 10031);
 	float ice = float(mat == 10000);
@@ -232,10 +243,13 @@ void main() {
     //Fog
     Fog(albedo.rgb, viewPos, atmosphereColor, 0.0);
 
-	/* DRAWBUFFERS:013 */
+	#ifdef VOLUMETRIC_CLOUDS
+	albedo.rgb = mix(albedo.rgb, cloud.rgb, cloudCoverage);
+	#endif
+
+	/* DRAWBUFFERS:07 */
 	gl_FragData[0] = albedo;
-	gl_FragData[1] = albedo;
-	gl_FragData[2] = vec4(refraction, float(albedo.a > 0.0 && albedo.a < 0.95), 1.0);
+	gl_FragData[1] = vec4(refraction * water, water * 0.4 + 0.4, 1.0);
 }
 
 #endif
