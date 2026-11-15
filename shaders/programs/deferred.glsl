@@ -285,7 +285,6 @@ void main() {
 			vec2 giPos = (texCoord * vec2(textureSize(depthtex0, 0)) - (float(GI_RESOLUTION / 4) + 0.5)) / float(GI_RESOLUTION);
 			vec2 giBase = floor(giPos) - 1.0;
 			vec4 gi = vec4(0.0);
-			float giBlockVisibility = 0.0;
 			float giWeight = 0.0;
 
 			for (int i = 0; i < 16; i++) {
@@ -295,11 +294,9 @@ void main() {
 				vec4 giTapSurface = texture2D(colortex15, giCoord);
 				float weight = tent.x * tent.y / (0.01 + abs(giTapSurface.r + viewPos.z) / -viewPos.z);
 				gi += texture2D(colortex14, giCoord) * weight;
-				giBlockVisibility += giTapSurface.b * weight;
 				giWeight += weight;
 			}
 			gi /= giWeight;
-			giBlockVisibility /= giWeight;
 
 			#if GI_DEBUG == 4
 			gi = vec4(0.0);
@@ -308,13 +305,6 @@ void main() {
 			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
 			vec3 giDelta = giAmbientDelta(gi, giSurface.g, viewPos);
 
-			vec3 giWorldNormal = giSurface.r > 0.5 ? vec3(0.0, 1.0, 0.0) : mat3(gbufferModelViewInverse) * giViewNormal(texCoord, viewPos);
-			vec3 giFloodfillPos = clamp((worldToVoxel(worldPos) + giWorldNormal) / voxelVolumeSize, 0.0, 1.0);
-			vec3 giFloodfill = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, giFloodfillPos).rgb : texture3D(floodfillSampler, giFloodfillPos).rgb;
-			     giFloodfill = pow(giFloodfill, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS * giFade * 0.95;
-			float giDiffuse = (0.25 * giWorldNormal.y + 0.75) + (0.667 - abs(giWorldNormal.x)) * (1.0 - abs(giWorldNormal.y)) * 0.15;
-			vec3 giBlockShadow = giReceptor * giDiffuse * giDiffuse * giFloodfill * (1.0 - giBlockVisibility) * (1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion) * GI_BLOCK_SHADOW_STRENGTH;
-
 			#if GI_DEBUG == 8
 			color = vec3(gi.a);
 			#elif GI_DEBUG == 9
@@ -322,7 +312,7 @@ void main() {
 			#elif GI_DEBUG == 10
 			color = vec3(giBlockVisibility);
 			#else
-			color = pow(max(pow(color, vec3(2.2)) + max(giReceptor * receptorWeight * giDelta - giBlockShadow, 0.0), vec3(0.0)), vec3(1.0 / 2.2));
+			color = pow(max(pow(color, vec3(2.2)) + max(giReceptor * receptorWeight * giDelta, 0.0), vec3(0.0)), vec3(1.0 / 2.2));
 			#endif
 		}
 		#endif

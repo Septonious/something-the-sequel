@@ -150,8 +150,8 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 
 // Floodfill //
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
-#define FLOODFILL_BRIGHTNESS 2.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
-#define FLOODFILL_RADIUS 1.0 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
+#define FLOODFILL_BRIGHTNESS 8.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
+#define FLOODFILL_RADIUS 1.2 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
 
 //  Ambient Occlusion //
 #define AO_TYPE 0 //[0 1 2]

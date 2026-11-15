@@ -39,7 +39,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     #endif
 
     //Floodfill Lighting. Works only on Iris
-    #if !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT
+    #if !defined GI && !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT
     vec3 voxelPos = worldToVoxel(worldPos);
 
     float floodfillFade = maxOf(abs(worldPos) / (voxelVolumeSize * 0.5));
@@ -69,6 +69,10 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
         blockLighting = mix(blockLighting, voxelLighting * FLOODFILL_BRIGHTNESS, mixFactor * 0.95);
     }
+    #endif
+
+    #ifdef GI
+    blockLighting *= 0.0;
     #endif
 
     //Shadow Calculations
