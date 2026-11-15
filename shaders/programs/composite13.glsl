@@ -53,8 +53,6 @@ void main() {
         vec2(viewSize) * (tileOffset + vec2(tileScale))
     );
 
-    // Photon fills the regions around the tiles from the closest valid tile.
-    // This prevents bilinear reconstruction from sampling undefined atlas data.
     if (clamp(texel.y, boundsMin.y, boundsMax.y) != texel.y ||
         tileIndex > 5) {
         int closestTile =

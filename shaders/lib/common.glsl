@@ -9,7 +9,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VPS
 #define SHADOW_FILTER_SAMPLES 6 //[6 8]
 #define VPS_BLUR_STRENGTH 0.55 //[0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80]
-#define SCREEN_SPACE_SHADOWS
+//#define SCREEN_SPACE_SHADOWS
 
 // PBR //
 #define GENERATED_EMISSION
@@ -145,20 +145,19 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VL_MORNING_EVENING 1.50 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.10 1.20 1.30 1.40 1.50 1.60 1.70 1.80 1.90 2.00]
 
 // LPV Fog //
-#define LPV_FOG
-#define LPV_FOG_STRENGTH 1.25 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
-#define LPV_FOG_EXTINCTION 0.024 //[0.008 0.012 0.016 0.020 0.024 0.030 0.040]
+//#define LPV_FOG
+#define LPV_FOG_STRENGTH 0.75 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
 
 // Floodfill //
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
-#define FLOODFILL_BRIGHTNESS 1.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
-#define FLOODFILL_RADIUS 1.5 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5 1.6 1.7]
+#define FLOODFILL_BRIGHTNESS 2.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
+#define FLOODFILL_RADIUS 1.0 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
 
 //  Ambient Occlusion //
-#define AO_TYPE 1 //[0 1 2]
+#define AO_TYPE 0 //[0 1 2]
 #define AO_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 
-//#define GI
+#define GI
 #define GI_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 #define GI_COLOR 4.0 //[1.0 1.5 2.0 3.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0]
 #define GI_MULTI_BOUNCE 0.70 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
