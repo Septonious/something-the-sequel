@@ -15,7 +15,9 @@ uniform int moonPhase;
 
 #ifdef VOLUMETRIC_CLOUDS
 uniform int worldTime;
+#endif
 
+#if defined VOLUMETRIC_CLOUDS || defined CIRRUS_CLOUDS
 uniform float shadowFade;
 #endif
 
@@ -45,7 +47,7 @@ uniform sampler2D colortex0;
 uniform sampler2D depthtex0;
 uniform sampler2D noisetex;
 
-#ifdef VOLUMETRIC_CLOUDS
+#if defined VOLUMETRIC_CLOUDS || defined CIRRUS_CLOUDS
 uniform sampler2D colortex8;
 #endif
 
@@ -106,8 +108,12 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/atmosphere/sunMoon.glsl"
 #endif
 
-#ifdef VOLUMETRIC_CLOUDS
+#if defined VOLUMETRIC_CLOUDS || defined CIRRUS_CLOUDS
 #include "/lib/atmosphere/volumetricClouds.glsl"
+#endif
+
+#ifdef CIRRUS_CLOUDS
+#include "/lib/atmosphere/cirrusClouds.glsl"
 #endif
 
 #ifdef STARS
@@ -170,6 +176,11 @@ void main() {
 		float occlusion = vc.a;
 		float nebulaFactor = 0.0;
 
+		#ifdef CIRRUS_CLOUDS
+		vec4 cirrus = vec4(0.0);
+		drawCirrusClouds(cirrus, atmosphereColor, worldPos, nViewPos, caveFactor, occlusion);
+		#endif
+
 		if (VoU > 0.0) {
 			#ifdef OVERWORLD_NEBULA
 			drawOverworldNebula(color, worldPos, VoU, VoM, blueNoiseDither, caveFactor, nebulaFactor);
@@ -182,6 +193,10 @@ void main() {
 
 		#ifdef STARS
 		drawStars(color, worldPos, sunVec, VoU, VoS, caveFactor, nebulaFactor, atmosphereHardMixFactor, occlusion, 0.6);
+		#endif
+
+		#ifdef CIRRUS_CLOUDS
+		color = fmix(color, cirrus.rgb, cirrus.a);
 		#endif
 
 		color *= 1.0 - blindFactor;

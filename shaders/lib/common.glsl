@@ -84,6 +84,11 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VC_SHADOW_STRENGTH 0.90 //[0.25 0.35 0.45 0.55 0.65 0.75 0.85 0.90 1.00]
 #define VC_SHADOW_SOFTNESS 0.09 //[0.04 0.06 0.09 0.12 0.15 0.20]
 
+#define CIRRUS_CLOUDS
+#define CIRRUS_AMOUNT 0.50 //[0.20 0.30 0.40 0.50 0.60 0.70 0.80]
+#define CIRRUS_HEIGHT 700 //[500 600 700 800 900 1000 1100 1200 1300 1400 1500]
+#define CIRRUS_BRIGHTNESS 1.00 //[0.50 0.75 1.00 1.25 1.50]
+
 //Deterministic dynamic weather//
 #define VC_DYNAMIC_WEATHER 1 //[0 1]
 #define VC_WEATHER_PERIOD_DAYS 1.00 //[0.25 0.50 0.75 1.00 1.50 2.00 3.00 4.00]
