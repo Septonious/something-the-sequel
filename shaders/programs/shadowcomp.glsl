@@ -24,6 +24,10 @@ uniform usampler3D voxelSampler;
 writeonly uniform image3D floodfill_img, floodfill_img_copy;
 uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 
+#ifdef GI
+layout(r32ui) uniform uimage3D light_grid_img;
+#endif
+
 uniform vec3 cameraPosition;
 uniform vec3 previousCameraPosition;
 
@@ -79,6 +83,24 @@ void main() {
 	if (!doFloodfill) {
 		vec3 color = getBlocklightColor(int(voxel) + 1);
 		light = pow(color, vec3(FLOODFILL_RADIUS));
+
+		#ifdef GI
+		if (maxOf(color) > 0.0) {
+			ivec3 gridCell = pos >> 4;
+			uint slot = imageAtomicAdd(light_grid_img, ivec3(gridCell.x * 16, gridCell.yz), 1u);
+
+			if (slot >= 15u) {
+				uint pick = (uint(pos.x) * 73856093u) ^ (uint(pos.y) * 19349663u) ^ (uint(pos.z) * 83492791u) ^ (uint(frameCounter) * 2654435761u);
+				     pick ^= pick >> 15u;
+				     pick *= 2246822519u;
+				     pick ^= pick >> 13u;
+
+				slot = pick % (slot + 1u);
+			}
+
+			if (slot < 15u) imageStore(light_grid_img, ivec3(gridCell.x * 16 + 1 + int(slot), gridCell.yz), uvec4(uint(pos.x) | (uint(pos.y) << 10u) | (uint(pos.z) << 20u), 0u, 0u, 0u));
+		}
+		#endif
 
 		#ifdef OVERWORLD
 		if (voxel >= 34 && voxel <= 39) {

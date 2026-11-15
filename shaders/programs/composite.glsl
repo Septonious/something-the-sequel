@@ -65,6 +65,9 @@ float sunVisibility = clamp(dot(sunVec, upVec) + 0.1, 0.0, 0.25) * 4.0;
 // Main //
 void main() {
 	vec3 color = texture2D(colortex0, texCoord).rgb;
+	#ifdef GI
+		 color = max(color, vec3(0.0));
+	#endif
 		 color = pow(color, vec3(2.2));
 
 	#ifdef WATER_FOG

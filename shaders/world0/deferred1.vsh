@@ -1,6 +1,6 @@
-#version 130
+#version 430 compatibility
 
 #define VSH
 #define OVERWORLD
 
-#include "/programs/deferred.glsl"
+#include "/programs/giGather.glsl"

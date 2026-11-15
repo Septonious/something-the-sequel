@@ -18,6 +18,11 @@ void main() {
 
 	/* DRAWBUFFERS:0 */
 	gl_FragData[0] = albedo;
+
+	#ifdef GI
+	/* RENDERTARGETS: 0,13 */
+	gl_FragData[1] = albedo;
+	#endif
 }
 
 #endif

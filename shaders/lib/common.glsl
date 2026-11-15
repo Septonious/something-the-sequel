@@ -158,6 +158,20 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define AO_TYPE 1 //[0 1 2]
 #define AO_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 
+//#define GI
+#define GI_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
+#define GI_COLOR 4.0 //[1.0 1.5 2.0 3.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0]
+#define GI_MULTI_BOUNCE 0.70 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
+#define GI_SKY_SHADOW 0.60 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
+#define GI_BLOCK_SHADOWS
+#define GI_BLOCK_SHADOW_STRENGTH 1.00 //[0.25 0.50 0.75 1.00]
+#define GI_RESOLUTION 2 //[1 2 4]
+#define GI_RAY_STEPS 32 //[16 24 32 48 64]
+#define GI_ACCUMULATION 0.75 //[0.25 0.50 0.75 1.00 1.50 2.00 3.00]
+#define GI_FILTER 1.00 //[0.00 0.50 1.00 2.00 4.00]
+#define GI_LEAF_PASS 0.50 //[0.00 0.25 0.50 0.75 1.00]
+#define GI_DEBUG 0 //[0 1 2 3 4 5 6 7 8 9 10 11 12]
+
 // Tonemap //
 #define TONEMAP_CONTRAST 2.8 //[1.0 1.2 1.4 1.6 1.8 2.0 2.2 2.4 2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0]
 #define TONEMAP_BRIGHTNESS 3.8 //[2.0 2.1 2.2 2.3 2.4 2.5 2.6 2.7 2.8 2.9 3.0 3.1 3.2 3.3 3.4 3.5 3.6 3.7 3.8 3.9 4.0 4.1 4.2 4.3 4.4 4.5 4.6 4.7 4.8 4.9 5.0]
@@ -480,6 +494,10 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 
 #if defined IS_IRIS && !defined MC_OS_MAC
 #define VX_SUPPORT
+#endif
+
+#if !defined VX_SUPPORT || VOXEL_VOLUME_SIZE > 256
+#undef GI
 #endif
 
 #ifdef SPECULAR_HIGHLIGHTS

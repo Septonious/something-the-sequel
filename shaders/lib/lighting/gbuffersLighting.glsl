@@ -7,6 +7,11 @@
 vec3 directLighting = vec3(0.0);
 vec3 occludableLighting = vec3(0.0);
 
+#ifdef GI
+vec3 giReceptor = vec3(0.0);
+vec2 giSurface = vec2(0.0);
+#endif
+
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
                       in float NoU, in float NoL, in float NoE,
                       in float subsurface, in float emission, in float smoothness, in float parallaxShadow, in float metalness, in float f0) {
@@ -164,6 +169,10 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     vec3 sceneLighting = mix(ambientLighting, lightCol * (0.15 + lightmap.y * 0.85), shadow * rainFactor * shadowFade);
          sceneLighting *= 1.0 + sss * shadow;
     vec3 directSceneLighting = sceneLighting - ambientLighting;
+
+    #ifdef GI
+    giSurface = vec2(vanillaDiffuse * lightmap.y, clamp(maxOf(shadow * rainFactor * shadowFade), 0.0, 1.0));
+    #endif
     #elif defined END
     vec3 sceneLighting = mix(endAmbientCol, endLightCol, shadow) * 0.25;
     vec3 directSceneLighting = sceneLighting - endAmbientCol * 0.25;
@@ -233,6 +242,10 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     #endif
 
     albedo.rgb = pow(albedo.rgb, vec3(2.2));
+
+    #ifdef GI
+    giReceptor = sqrt(albedo.rgb * (1.0 - metalness));
+    #endif
 
     vec3 diffuseAlbedo = albedo.rgb * (1.0 - metalness);
          diffuseAlbedo *= sceneLighting + blockLighting + emission * EMISSION_STRENGTH + lightningFlash;

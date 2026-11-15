@@ -61,6 +61,17 @@ uniform sampler2D colortex10;
 uniform sampler2D colortex12;
 #endif
 
+#ifdef GI
+uniform sampler2D colortex11;
+uniform sampler2D colortex13;
+uniform sampler2D colortex14;
+uniform sampler2D colortex15;
+
+uniform usampler3D voxelGiSampler;
+uniform sampler3D floodfillSampler, floodfillSamplerCopy;
+uniform sampler3D giCacheSampler, giCacheSamplerCopy;
+#endif
+
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -131,9 +142,19 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/screenSpaceShadows.glsl"
 #endif
 
+#ifdef GI
+#include "/lib/vx/voxelization.glsl"
+#include "/lib/vx/giVoxel.glsl"
+#include "/lib/vx/giNormal.glsl"
+#include "/lib/vx/giApply.glsl"
+#endif
+
 // Main //
 void main() {
     vec3 color = texture2D(colortex0, texCoord).rgb;
+    #ifdef GI
+         color = max(color, vec3(0.0));
+    #endif
 
     float z0 = texture2D(depthtex0, texCoord).r;
 	vec3 viewPos = ToView(vec3(texCoord, z0));
@@ -206,10 +227,18 @@ void main() {
     }
 
 	if (z0 < 1.0) {
+		#ifdef GI
+		float giScreenShadow = 1.0;
+		float giOcclusion = 0.0;
+		#endif
+
 		#ifdef SCREEN_SPACE_SHADOWS
 		vec3 directLighting = texture2D(colortex9, texCoord).rgb;
 		if (z0 > 0.56 && maxOf(directLighting) > 0.0) {
 			float screenSpaceShadow = getScreenSpaceShadow(viewPos, blueNoiseDither);
+			#ifdef GI
+			giScreenShadow = screenSpaceShadow;
+			#endif
 			if (screenSpaceShadow < 1.0) color = pow(max(pow(color, vec3(2.2)) - directLighting * (1.0 - screenSpaceShadow), vec3(0.0)), vec3(1.0 / 2.2));
 		}
 		#endif
@@ -232,7 +261,69 @@ void main() {
 				occlusionWeight += weight;
 			}
 
+			#ifdef GI
+			giOcclusion = occlusion / occlusionWeight;
+			#endif
+
 			color = pow(max(pow(color, vec3(2.2)) - occludableLighting * (occlusion / occlusionWeight), vec3(0.0)), vec3(1.0 / 2.2));
+		}
+		#endif
+
+		#ifdef GI
+		vec3 giReceptor = texture2D(colortex13, texCoord).rgb;
+		     giReceptor *= giReceptor;
+		float giFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
+		      giFade = 1.0 - giFade * giFade;
+
+		#if GI_DEBUG == 7
+		if (texCoord.x > 0.5) giFade = 0.0;
+		#endif
+
+		if (z0 > 0.56 && maxOf(giReceptor) > 0.0 && giFade > 0.0) {
+			vec3 giSurface = texture2D(colortex11, texCoord).rgb;
+			vec2 giSize = vec2(textureSize(colortex14, 0));
+			vec2 giPos = (texCoord * vec2(textureSize(depthtex0, 0)) - (float(GI_RESOLUTION / 4) + 0.5)) / float(GI_RESOLUTION);
+			vec2 giBase = floor(giPos) - 1.0;
+			vec4 gi = vec4(0.0);
+			float giBlockVisibility = 0.0;
+			float giWeight = 0.0;
+
+			for (int i = 0; i < 16; i++) {
+				vec2 giTap = giBase + vec2(i % 4, i / 4);
+				vec2 giCoord = (clamp(giTap, vec2(0.0), giSize - 1.0) + 0.5) / giSize;
+				vec2 tent = max(1.0 - abs(giTap - giPos) * 0.5, 0.0);
+				vec4 giTapSurface = texture2D(colortex15, giCoord);
+				float weight = tent.x * tent.y / (0.01 + abs(giTapSurface.r + viewPos.z) / -viewPos.z);
+				gi += texture2D(colortex14, giCoord) * weight;
+				giBlockVisibility += giTapSurface.b * weight;
+				giWeight += weight;
+			}
+			gi /= giWeight;
+			giBlockVisibility /= giWeight;
+
+			#if GI_DEBUG == 4
+			gi = vec4(0.0);
+			#endif
+
+			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
+			vec3 giDelta = giAmbientDelta(gi, giSurface.g, viewPos);
+
+			vec3 giWorldNormal = giSurface.r > 0.5 ? vec3(0.0, 1.0, 0.0) : mat3(gbufferModelViewInverse) * giViewNormal(texCoord, viewPos);
+			vec3 giFloodfillPos = clamp((worldToVoxel(worldPos) + giWorldNormal) / voxelVolumeSize, 0.0, 1.0);
+			vec3 giFloodfill = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, giFloodfillPos).rgb : texture3D(floodfillSampler, giFloodfillPos).rgb;
+			     giFloodfill = pow(giFloodfill, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS * giFade * 0.95;
+			float giDiffuse = (0.25 * giWorldNormal.y + 0.75) + (0.667 - abs(giWorldNormal.x)) * (1.0 - abs(giWorldNormal.y)) * 0.15;
+			vec3 giBlockShadow = giReceptor * giDiffuse * giDiffuse * giFloodfill * (1.0 - giBlockVisibility) * (1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion) * GI_BLOCK_SHADOW_STRENGTH;
+
+			#if GI_DEBUG == 8
+			color = vec3(gi.a);
+			#elif GI_DEBUG == 9
+			color = pow(gi.rgb, vec3(1.0 / 2.2));
+			#elif GI_DEBUG == 10
+			color = vec3(giBlockVisibility);
+			#else
+			color = pow(max(pow(color, vec3(2.2)) + giReceptor * receptorWeight * giDelta - giBlockShadow, vec3(0.0)), vec3(1.0 / 2.2));
+			#endif
 		}
 		#endif
 
@@ -244,6 +335,40 @@ void main() {
 	vc.rgb = pow(max(vc.rgb, vec3(0.0)), vec3(1.0 / 2.2));
 
 	color = mix(color, vc.rgb, vc.a);
+	#endif
+
+	#ifdef GI
+	#if GI_DEBUG == 1
+	if (z0 < 1.0) color = texture2D(colortex13, texCoord).rgb;
+	#elif GI_DEBUG == 2
+	if (z0 < 1.0) color = vec3(texture2D(colortex11, texCoord).g);
+	#elif GI_DEBUG == 3
+	if (z0 < 1.0) color = vec3(texture2D(colortex11, texCoord).b);
+	#elif GI_DEBUG == 12
+	if (z0 < 1.0) color = texture2D(colortex14, texCoord).rgb;
+	#elif GI_DEBUG == 11
+	if (z0 < 1.0) {
+		ivec3 giCacheCell = ivec3(worldToVoxel(worldPos) + mat3(gbufferModelViewInverse) * giViewNormal(texCoord, viewPos) * 0.5);
+		vec4 giCache = (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, giCacheCell, 0) : texelFetch(giCacheSampler, giCacheCell, 0);
+
+		color = giCache.a < 0.0 ? vec3(1.0, 0.0, 1.0) : vec3(giCache.a);
+	}
+	#elif GI_DEBUG == 5 || GI_DEBUG == 6
+	if (z0 < 1.0) {
+		vec3 giVoxelPos = worldToVoxel(worldPos + normalize(worldPos) * 0.05);
+		color = vec3(0.0);
+
+		if (isInsideVoxelVolume(giVoxelPos)) {
+			uint giWord = texelFetch(voxelGiSampler, ivec3(giVoxelPos), 0).r;
+
+			#if GI_DEBUG == 5
+			color = pow(giVoxelAlbedo(giWord), vec3(1.0 / 2.2));
+			#else
+			color = vec3(giVoxelNonFull(giWord), giVoxelSeeThrough(giWord), giVoxelPlant(giWord));
+			#endif
+		}
+	}
+	#endif
 	#endif
 
     /* DRAWBUFFERS:0456 */

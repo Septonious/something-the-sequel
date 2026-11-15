@@ -81,6 +81,21 @@ uniform vec3 cameraPosition;
 writeonly uniform uimage3D voxel_img;
 #endif
 
+#ifdef GI
+uniform int frameCounter;
+
+uniform vec3 previousCameraPosition;
+
+uniform sampler2D tex;
+
+uniform usampler3D voxelShapeSampler, voxelShapeSamplerCopy;
+
+writeonly uniform uimage3D voxel_shape_img, voxel_shape_img_copy;
+
+layout(r32ui) uniform uimage3D voxel_gi_img;
+layout(r32ui) uniform uimage3D quad_hash_img;
+#endif
+
 uniform mat4 shadowProjectionInverse;
 uniform mat4 shadowModelViewInverse;
 
@@ -92,6 +107,10 @@ attribute vec4 mc_Entity;
 // Includes //
 #ifdef VX_SUPPORT
 #include "/lib/vx/voxelization.glsl"
+#endif
+
+#ifdef GI
+#include "/lib/vx/giVoxel.glsl"
 #endif
 
 // Main //
@@ -106,6 +125,10 @@ void main() {
     // Voxelization //
 	#ifdef VX_SUPPORT
     if (gl_VertexID % 4 == 0) updateVoxelMap(int(max(mc_Entity.x - 10000, 0)));
+	#endif
+
+	#ifdef GI
+	updateVoxelGi(mat, lmCoord.y);
 	#endif
 
 	//Color & Position //

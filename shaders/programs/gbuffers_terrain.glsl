@@ -161,6 +161,14 @@ void main() {
     gl_FragData[2] = vec4(foliage, 0.0, 0.0, albedo.a);
     #endif
     #endif
+
+    #ifdef GI
+    /* RENDERTARGETS: 0,9,10,11,13 */
+    gl_FragData[1] = vec4(directLighting * (1.0 - leaves), albedo.a);
+    gl_FragData[2] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
+    gl_FragData[3] = vec4(foliage, giSurface, albedo.a);
+    gl_FragData[4] = vec4(giReceptor, albedo.a);
+    #endif
 }
 
 #endif

@@ -52,6 +52,10 @@ uniform sampler2D depthtex1;
 
 #ifdef VOLUMETRIC_CLOUDS
 uniform sampler2D colortex5, colortex6;
+
+#ifdef GI
+uniform sampler2D colortex14;
+#endif
 #endif
 
 uniform mat4 gbufferProjection;
@@ -98,6 +102,10 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/shadows.glsl"
 #include "/lib/lighting/gbuffersLighting.glsl"
 #include "/lib/water/waterFog.glsl"
+
+#ifdef GI
+#include "/lib/vx/giApply.glsl"
+#endif
 
 #ifdef OVERWORLD
 #include "/lib/atmosphere/sky.glsl"
@@ -169,6 +177,15 @@ void main() {
 
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, 0.0, emission, 0.6, 0.0, 0.0, 0.0);
+
+    #ifdef GI
+    if (water < 0.5) {
+        float giFade = clamp(maxOf(abs(worldPos) / (vec3(VOXEL_VOLUME_SIZE, VOXEL_VOLUME_SIZE * 0.5, VOXEL_VOLUME_SIZE) * 0.5)), 0.0, 1.0);
+              giFade = 1.0 - giFade * giFade;
+
+        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * (1.0 - giSurface.y) * giFade * giAmbientDelta(texture2D(colortex14, screenPos.xy), giSurface.x, viewPos), vec3(0.0)), vec3(1.0 / 2.2));
+    }
+    #endif
 
     #if defined OVERWORLD
 	float atmosphereHardMixFactor = 0.0;
