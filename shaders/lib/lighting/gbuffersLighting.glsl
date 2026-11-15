@@ -90,6 +90,8 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
         float lightmapS = lightmap.y * lightmap.y * (3.0 - 2.0 * lightmap.y);
 
         vec3 worldPosM = worldPos;
+        vec2 shadowDepthGradient = vec2(0.0);
+        float shadowDepthBias = 0.0;
 
         #ifdef GBUFFERS_TEXTURED
             vec3 centerWorldPos = floor(worldPos + cameraPosition) - cameraPosition + 0.5;
@@ -99,6 +101,20 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
             float distanceBias = pow(dot(worldPos, worldPos), 0.75);
                   distanceBias = 0.1 + 0.0004 * distanceBias * (1.0 - float(subsurface > 0.0));
             vec3 bias = worldNormal * distanceBias * (2.0 - 0.95 * max(NoL, 0.0));
+
+            if (subsurface <= 0.0) {
+                vec3 shadowClip = projMAD(shadowProjection, mat3(shadowModelView) * worldPos + shadowModelView[3].xyz);
+                float shadowClipDistance = length(shadowClip.xy);
+                float distortFactor = shadowClipDistance * shadowMapBias + (1.0 - shadowMapBias);
+                vec3 geometryNormal = normalize(mat3(gbufferModelViewInverse) * normal);
+                vec3 shadowNormal = mat3(shadowModelView) * geometryNormal;
+                float shadowNormalZ = shadowNormal.z < 0.0 ? min(shadowNormal.z, -0.1) : max(shadowNormal.z, 0.1);
+                vec2 depthSlope = -diagonal3(shadowProjection).z * shadowNormal.xy / (diagonal3(shadowProjection).xy * shadowNormalZ);
+                vec2 clipDirection = shadowClip.xy / max(shadowClipDistance, 0.000001);
+                shadowDepthGradient = 0.2 * distortFactor * (depthSlope + shadowMapBias * shadowClipDistance / (1.0 - shadowMapBias) * dot(depthSlope, clipDirection) * clipDirection);
+                shadowDepthBias = (0.0512 + length(shadowDepthGradient) * 0.75) / float(shadowMapResolution) + 2.0 / 65536.0;
+                bias = geometryNormal * 2.0 * shadowDistance / float(shadowMapResolution) * distortFactor;
+            }
 
             //Fix light leaking in caves
             if (lightmapS < 0.999) {
@@ -120,11 +136,12 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
         #endif
 
         vec3 shadowPos = ToShadow(worldPosM);
+             shadowPos.z -= shadowDepthBias;
         float fade = clamp(length(viewPos.xz) * 0.01, 0.0, 1.0);
         float offset = 0.00075 - shadowMapResolution * 0.0000001; 
               offset *= 1.0 + subsurface * (3.0 - 3.5 * fade);
 
-        shadow = computeShadow(shadowPos, offset, subsurface, lightmap.y, 1.0 - fade);
+        shadow = computeShadow(shadowPos, offset, subsurface, lightmap.y, 1.0 - fade, shadowDepthGradient);
     }
     vec3 realShadow = shadow;
     vec3 fakeShadow = getFakeShadow(lightmap.y);

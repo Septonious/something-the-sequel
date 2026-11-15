@@ -55,7 +55,7 @@ void findBlockerDistance(vec3 shadowPos, mat2 ditherMatrix, inout float offset, 
 }
 #endif
 
-vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLightMap, float vpsFade) {
+vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLightMap, float vpsFade, vec2 depthGradient) {
     float shadow0 = 0.0;
     vec3 shadowCol = vec3(0.0);    
 
@@ -79,7 +79,7 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
         #else
         vec2 shadowOffset = ditherMatrix * offset * shadowOffsets8[i];
         #endif
-        shadow0 += texture2DShadow(shadowtex0, vec3(shadowPos.st + shadowOffset, shadowPos.z));
+        shadow0 += texture2DShadow(shadowtex0, vec3(shadowPos.st + shadowOffset, shadowPos.z + dot(depthGradient, shadowOffset)));
     }
     shadow0 *= 1.0 / float(SHADOW_FILTER_SAMPLES);
 
@@ -88,7 +88,7 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
         for (int i = 0; i < 4; i++) {
             vec2 shadowOffset = ditherMatrix * offset * 2.0 * shadowOffsets4[i];
 
-            float translucentVisibility = texture2DShadow(shadowtex1, vec3(shadowPos.st + shadowOffset, shadowPos.z));
+            float translucentVisibility = texture2DShadow(shadowtex1, vec3(shadowPos.st + shadowOffset, shadowPos.z + dot(depthGradient, shadowOffset)));
             if (translucentVisibility > 0.0) shadowCol += texture2DLod(shadowcolor0, shadowPos.st + shadowOffset, 0.0).rgb * translucentVisibility;
         }
     }
