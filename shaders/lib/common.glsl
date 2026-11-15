@@ -150,7 +150,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 
 // Floodfill //
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
-#define FLOODFILL_BRIGHTNESS 16.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
+#define FLOODFILL_BRIGHTNESS 8.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
 #define FLOODFILL_RADIUS 1.2 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
 
 //  Ambient Occlusion //
@@ -158,7 +158,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define AO_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 
 #define GI
-#define GI_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
+#define GI_STRENGTH 2.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 #define GI_COLOR 4.0 //[1.0 1.5 2.0 3.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0]
 #define GI_MULTI_BOUNCE 0.70 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
 #define GI_SKY_SHADOW 0.60 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
