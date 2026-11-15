@@ -5,6 +5,7 @@
 #endif
 
 vec3 directLighting = vec3(0.0);
+vec3 occludableLighting = vec3(0.0);
 
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
                       in float NoU, in float NoL, in float NoE,
@@ -241,6 +242,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     vec3 finalColor = diffuseAlbedo + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
     directLighting = albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
+    occludableLighting = albedo.rgb * (1.0 - metalness) * (sceneLighting - directSceneLighting + blockLighting) * vanillaDiffuse;
 
     albedo.rgb = pow(max(finalColor, vec3(0.0)), vec3(1.0 / 2.2));
 }

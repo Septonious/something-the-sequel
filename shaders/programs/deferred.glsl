@@ -54,6 +54,11 @@ uniform sampler2D colortex9;
 uniform mat4 gbufferProjection;
 #endif
 
+#ifdef GTAO
+uniform sampler2D colortex10;
+uniform sampler2D colortex12;
+#endif
+
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -191,6 +196,28 @@ void main() {
 		if (z0 > 0.56 && maxOf(directLighting) > 0.0) {
 			float screenSpaceShadow = getScreenSpaceShadow(viewPos, blueNoiseDither);
 			if (screenSpaceShadow < 1.0) color = pow(max(pow(color, vec3(2.2)) - directLighting * (1.0 - screenSpaceShadow), vec3(0.0)), vec3(1.0 / 2.2));
+		}
+		#endif
+
+		#ifdef GTAO
+		vec3 occludableLighting = texture2D(colortex10, texCoord).rgb;
+		if (z0 > 0.56 && maxOf(occludableLighting) > 0.0) {
+			vec2 aoSize = vec2(textureSize(colortex12, 0));
+			vec2 aoPos = (texCoord * vec2(textureSize(depthtex0, 0)) - 0.5) * 0.5;
+			vec2 aoBase = floor(aoPos) - 1.0;
+			float occlusion = 0.0;
+			float occlusionWeight = 0.0;
+
+			for (int i = 0; i < 16; i++) {
+				vec2 aoTap = aoBase + vec2(i % 4, i / 4);
+				vec2 aoData = texture2D(colortex12, (clamp(aoTap, vec2(0.0), aoSize - 1.0) + 0.5) / aoSize).rg;
+				vec2 tent = max(1.0 - abs(aoTap - aoPos) * 0.5, 0.0);
+				float weight = tent.x * tent.y / (0.01 + abs(aoData.g + viewPos.z) / -viewPos.z);
+				occlusion += aoData.r * weight;
+				occlusionWeight += weight;
+			}
+
+			color = pow(max(pow(color, vec3(2.2)) - occludableLighting * (occlusion / occlusionWeight), vec3(0.0)), vec3(1.0 / 2.2));
 		}
 		#endif
 

@@ -3,4 +3,4 @@
 #define FSH
 #define OVERWORLD
 
-#include "/programs/deferred.glsl"
+#include "/programs/ambientOcclusion.glsl"

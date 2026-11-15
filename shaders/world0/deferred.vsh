@@ -3,4 +3,4 @@
 #define VSH
 #define OVERWORLD
 
-#include "/programs/deferred.glsl"
+#include "/programs/ambientOcclusion.glsl"

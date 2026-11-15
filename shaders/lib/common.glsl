@@ -152,6 +152,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 //  Ambient Occlusion //
 #define VANILLA_AO
 #define AO_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
+#define GTAO
 
 // Tonemap //
 #define TONEMAP_CONTRAST 2.8 //[1.0 1.2 1.4 1.6 1.8 2.0 2.2 2.4 2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0]
