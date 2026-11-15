@@ -1,3 +1,8 @@
+profile.LOW=Low
+profile.MEDIUM=Medium
+profile.HIGH=High (Default)
+profile.ULTRA=Ultra
+
 screen.ATMOSPHERICS=Atmospherics
 screen.SHADER_CLOUDS_CONFIG=Shader Clouds Config
 
@@ -126,8 +131,11 @@ option.FLOODFILL_RADIUS=Colored Lighting Radius
 option.FLOODFILL_RADIUS.comment=Controls how far the light can spread.
 option.VOXEL_VOLUME_SIZE=Voxel Volume Size
 option.VOXEL_VOLUME_SIZE.comment=Controls the voxelization distance for colored lighting. §c[-]§r Higher values greatly decrease performance.
-option.VANILLA_AO=Vanilla AO
-option.GTAO=Ambient Occlusion (GTAO)
+option.AO_TYPE=Ambient Occlusion
+option.AO_TYPE.comment=Vanilla AO is free. SSAO is a fast screen space pass. GTAO is the most accurate and the most expensive.
+value.AO_TYPE.0=Vanilla AO
+value.AO_TYPE.1=SSAO
+value.AO_TYPE.2=GTAO
 option.AO_STRENGTH=AO Strength
 
 screen.SHADOWS=Shadows Config

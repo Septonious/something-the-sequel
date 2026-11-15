@@ -20,7 +20,11 @@ const bool colortex12Clear = false;
 // Includes //
 #include "/lib/util/bayerDithering.glsl"
 #include "/lib/util/ToView.glsl"
+#if AO_TYPE == 1
+#include "/lib/lighting/ssao.glsl"
+#else
 #include "/lib/lighting/gtao.glsl"
+#endif
 
 // Main //
 void main() {
@@ -37,7 +41,11 @@ void main() {
               sliceDither = fract(sliceDither + 1.61803398875 * mod(float(frameCounter), 3600.0));
               stepDither = fract(stepDither + 0.7548776662 * mod(float(frameCounter), 3600.0));
         #endif
+        #if AO_TYPE == 1
+        occlusion = 1.0 - getSSAO(viewPos, coord, sliceDither, stepDither);
+        #else
         occlusion = 1.0 - getGTAO(viewPos, coord, sliceDither, stepDither);
+        #endif
     }
 
     /* RENDERTARGETS: 12 */

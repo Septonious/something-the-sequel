@@ -150,7 +150,7 @@ void main() {
     gl_FragData[1] = vec4(directLighting * (1.0 - leaves), albedo.a);
     #endif
 
-    #ifdef GTAO
+    #if AO_TYPE > 0
     #ifdef SCREEN_SPACE_SHADOWS
     /* RENDERTARGETS: 0,9,10,11 */
     gl_FragData[2] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);

@@ -56,7 +56,7 @@ uniform sampler2D colortex9;
 uniform mat4 gbufferProjection;
 #endif
 
-#ifdef GTAO
+#if AO_TYPE > 0
 uniform sampler2D colortex10;
 uniform sampler2D colortex12;
 #endif
@@ -214,7 +214,7 @@ void main() {
 		}
 		#endif
 
-		#ifdef GTAO
+		#if AO_TYPE > 0
 		vec3 occludableLighting = texture2D(colortex10, texCoord).rgb;
 		if (z0 > 0.56 && maxOf(occludableLighting) > 0.0) {
 			vec2 aoSize = vec2(textureSize(colortex12, 0));
