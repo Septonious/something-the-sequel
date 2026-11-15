@@ -33,8 +33,8 @@ void main() {
 out vec2 texCoord;
 
 void main() {
-    texCoord = gl_MultiTexCoord0.xy;
-    gl_Position = vec4(gl_Vertex.xy * 2.0 - 1.0, 0.0, 1.0);
+    texCoord = gl_Vertex.xy * vec2(0.5, 0.25) + vec2(0.5, 0.75);
+    gl_Position = vec4(texCoord * 2.0 - 1.0, 0.0, 1.0);
 }
 
 #endif

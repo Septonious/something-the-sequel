@@ -117,7 +117,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/atmosphere/fog.glsl"
 
 #ifdef SCREEN_SPACE_SHADOWS
-#include "/lib/util/ToScreen.glsl"
 #include "/lib/lighting/screenSpaceShadows.glsl"
 #endif
 
