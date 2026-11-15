@@ -176,7 +176,7 @@ void computeVolumetricLight(inout vec3 color, float dither) {
                       volumeFade = 1.0 - volumeFade * volumeFade;
 
                 vec3 lpv = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
-                float localDensity = LPV_FOG_EXTINCTION * volumeFade * smoothstep(0.005, 0.10, maxOf(lpv));
+                float localDensity = 0.01 * volumeFade * smoothstep(0.005, 0.10, maxOf(lpv));
                 float fogStepTransmittance = exp(-localDensity * fogStepLength);
 
                 scatteredFog += fogTransmittance * (1.0 - fogStepTransmittance) * lpv * lpvFogIntensity;
