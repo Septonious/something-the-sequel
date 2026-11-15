@@ -8,13 +8,17 @@
 // Varyings //
 in vec2 texCoord;
 
+#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+flat in float closedSpaceFactor;
+#endif
+
 // Uniforms //
 uniform sampler2D colortex0;
 
 #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
 uniform sampler2D depthtex0, noisetex;
 uniform int frameCounter, isEyeInWater;
-uniform float far, near, frameTimeCounter;
+uniform float frameTimeCounter;
 uniform float blindFactor;
 #if MC_VERSION >= 11900
 uniform float darknessFactor;
@@ -104,10 +108,49 @@ void main() {
 // Varyings //
 out vec2 texCoord;
 
+#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+flat out float closedSpaceFactor;
+
+uniform sampler2D depthtex0;
+uniform int isEyeInWater;
+uniform float far, near;
+uniform vec3 cameraPosition;
+uniform ivec2 eyeBrightnessSmooth;
+
+float eBS = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+float caveFactor = mix(clamp((cameraPosition.y - 56.0) / 16.0, float(sign(isEyeInWater)), 1.0), 1.0, eBS);
+
+//Five fixed screen-space probes detect a roof or nearby walls without
+//changing the fog multiplier at individual sky/geometry pixel boundaries.
+float getEnclosedDepth(vec2 uv) {
+    float depth = texture2D(depthtex0, uv).r;
+    float linearDepth = near * far / max(far - depth * (far - near), 0.0001);
+    return 1.0 - smoothstep(12.0, 72.0, linearDepth);
+}
+
+float getClosedSpaceFactor() {
+    float depthEnclosure = getEnclosedDepth(vec2(0.50, 0.78)) * 0.30;
+          depthEnclosure += getEnclosedDepth(vec2(0.25, 0.63)) * 0.19;
+          depthEnclosure += getEnclosedDepth(vec2(0.75, 0.63)) * 0.19;
+          depthEnclosure += getEnclosedDepth(vec2(0.32, 0.40)) * 0.16;
+          depthEnclosure += getEnclosedDepth(vec2(0.68, 0.40)) * 0.16;
+
+    float skyOcclusion = 1.0 - smoothstep(0.25, 0.85, eBS);
+    float roofEnclosure = smoothstep(0.30, 0.75, depthEnclosure) * (0.25 + 0.75 * skyOcclusion);
+    float caveEnclosure = (1.0 - caveFactor) * (0.50 + 0.50 * skyOcclusion);
+    float ambientEnclosure = skyOcclusion * 0.35;
+    return clamp(max(max(roofEnclosure, caveEnclosure), ambientEnclosure), 0.0, 1.0);
+}
+#endif
+
 // Main //
 void main() {
     texCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
     gl_Position = ftransform();
+
+    #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+    closedSpaceFactor = getClosedSpaceFactor();
+    #endif
 }
 
 #endif

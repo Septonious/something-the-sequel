@@ -41,9 +41,8 @@ void main() {
 
     #ifdef TAA
     float depth = texture2D(depthtex1, texCoord).r;
-    float temporalData = texture2D(colortex2, texCoord).r;
 
-    temporalHistory = TemporalAA(color, temporalData, depth);
+    temporalHistory = TemporalAA(color, 0.0, depth);
     color = temporalHistory.gba;
     #endif
 

@@ -29,7 +29,7 @@ uniform vec3 fogColor;
 uniform sampler2D colortex0;
 
 #ifdef WATER_FOG
-uniform sampler2D depthtex0, depthtex1;
+uniform sampler2D depthtex0;
 
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelView;
@@ -68,13 +68,12 @@ void main() {
 		 color = pow(color, vec3(2.2));
 
 	#ifdef WATER_FOG
-	float z0 = texture2D(depthtex0, texCoord).r;
-	float z1 = texture2D(depthtex1, texCoord).r;
-	
-	vec3 screenPos = vec3(texCoord, z0);
-	vec3 viewPos = ToView(screenPos);
-
 	if (isEyeInWater == 1){
+		float z0 = texture2D(depthtex0, texCoord).r;
+
+		vec3 screenPos = vec3(texCoord, z0);
+		vec3 viewPos = ToView(screenPos);
+
 		vec3 colorMult = vec3(1.0);
 		vec4 waterFog = getWaterFog(colorMult, viewPos);
 		color *= colorMult;

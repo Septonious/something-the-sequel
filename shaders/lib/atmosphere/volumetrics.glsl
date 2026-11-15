@@ -22,28 +22,6 @@ float getVolumetricShadow(vec3 shadowPos) {
 }
 #endif
 
-//Five fixed screen-space probes detect a roof or nearby walls without
-//changing the fog multiplier at individual sky/geometry pixel boundaries.
-float getEnclosedDepth(vec2 uv) {
-    float depth = texture2D(depthtex0, uv).r;
-    float linearDepth = near * far / max(far - depth * (far - near), 0.0001);
-    return 1.0 - smoothstep(12.0, 72.0, linearDepth);
-}
-
-float getClosedSpaceFactor() {
-    float depthEnclosure = getEnclosedDepth(vec2(0.50, 0.78)) * 0.30;
-          depthEnclosure += getEnclosedDepth(vec2(0.25, 0.63)) * 0.19;
-          depthEnclosure += getEnclosedDepth(vec2(0.75, 0.63)) * 0.19;
-          depthEnclosure += getEnclosedDepth(vec2(0.32, 0.40)) * 0.16;
-          depthEnclosure += getEnclosedDepth(vec2(0.68, 0.40)) * 0.16;
-
-    float skyOcclusion = 1.0 - smoothstep(0.25, 0.85, eBS);
-    float roofEnclosure = smoothstep(0.30, 0.75, depthEnclosure) * (0.25 + 0.75 * skyOcclusion);
-    float caveEnclosure = (1.0 - caveFactor) * (0.50 + 0.50 * skyOcclusion);
-    float ambientEnclosure = skyOcclusion * 0.35;
-    return clamp(max(max(roofEnclosure, caveEnclosure), ambientEnclosure), 0.0, 1.0);
-}
-
 void computeVolumetricLight(inout vec3 color, float dither) {
     float depth = texture2D(depthtex0, texCoord).r;
     float visibility = 1.0 - blindFactor;
@@ -57,8 +35,6 @@ void computeVolumetricLight(inout vec3 color, float dither) {
     vec3 nWorldPos = normalize(mat3(gbufferModelViewInverse) * nViewPos);
     float sceneDistance = depth >= 0.999999 ? 1.0e10 : length(ToView(vec3(texCoord, depth)));
     if (sceneDistance <= 0.01) return;
-
-    float closedSpaceFactor = getClosedSpaceFactor();
 
     #if defined LPV_FOG && defined VX_SUPPORT
     //Keep the exact G-buffers voxel volume and sample it with its own fixed grid.
