@@ -4,6 +4,8 @@
 #endif
 #endif
 
+vec3 directLighting = vec3(0.0);
+
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
                       in float NoU, in float NoL, in float NoE,
                       in float subsurface, in float emission, in float smoothness, in float parallaxShadow, in float metalness, in float f0) {
@@ -142,12 +144,16 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     #ifdef OVERWORLD
     float rainFactor = 1.0 - wetness * 0.5;
 
-    vec3 sceneLighting = mix(ambientCol * lightmap.y * (1.0 - VoL * 0.5), lightCol * (0.15 + lightmap.y * 0.85), shadow * rainFactor * shadowFade);
+    vec3 ambientLighting = ambientCol * lightmap.y * (1.0 - VoL * 0.5);
+    vec3 sceneLighting = mix(ambientLighting, lightCol * (0.15 + lightmap.y * 0.85), shadow * rainFactor * shadowFade);
          sceneLighting *= 1.0 + sss * shadow;
+    vec3 directSceneLighting = sceneLighting - ambientLighting;
     #elif defined END
     vec3 sceneLighting = mix(endAmbientCol, endLightCol, shadow) * 0.25;
+    vec3 directSceneLighting = sceneLighting - endAmbientCol * 0.25;
     #elif defined NETHER
     vec3 sceneLighting = pow(netherColSqrt, vec3(0.75)) * 0.035;
+    vec3 directSceneLighting = vec3(0.0);
     #endif
 
     //Lightning Flash
@@ -217,6 +223,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
          diffuseAlbedo *= vanillaDiffuse;
 
     vec3 finalColor = diffuseAlbedo + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
+    directLighting = albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
 
     albedo.rgb = pow(max(finalColor, vec3(0.0)), vec3(1.0 / 2.2));
 }

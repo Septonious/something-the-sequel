@@ -25,6 +25,7 @@ const int colortex4Format = R11F_G11F_B10F; //Reflections / auxiliary HDR
 const int colortex5Format = RGBA16F;
 const int colortex6Format = RG16F;
 const int colortex7Format = RGBA16;
+const int colortex9Format = R11F_G11F_B10F;
 */
 
 // Includes //

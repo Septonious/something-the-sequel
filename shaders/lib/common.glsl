@@ -9,6 +9,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VPS
 #define SHADOW_FILTER_SAMPLES 6 //[6 8]
 #define VPS_BLUR_STRENGTH 0.55 //[0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80]
+#define SCREEN_SPACE_SHADOWS
 
 // PBR //
 #define GENERATED_EMISSION

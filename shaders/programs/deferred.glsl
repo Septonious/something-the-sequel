@@ -49,6 +49,11 @@ uniform sampler2D noisetex;
 uniform sampler2D colortex8;
 #endif
 
+#ifdef SCREEN_SPACE_SHADOWS
+uniform sampler2D colortex9;
+uniform mat4 gbufferProjection;
+#endif
+
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -110,6 +115,11 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #endif
 
 #include "/lib/atmosphere/fog.glsl"
+
+#ifdef SCREEN_SPACE_SHADOWS
+#include "/lib/util/ToScreen.glsl"
+#include "/lib/lighting/screenSpaceShadows.glsl"
+#endif
 
 // Main //
 void main() {
@@ -177,6 +187,14 @@ void main() {
     }
 
 	if (z0 < 1.0) {
+		#ifdef SCREEN_SPACE_SHADOWS
+		vec3 directLighting = texture2D(colortex9, texCoord).rgb;
+		if (z0 > 0.56 && maxOf(directLighting) > 0.0) {
+			float screenSpaceShadow = getScreenSpaceShadow(viewPos, blueNoiseDither);
+			if (screenSpaceShadow < 1.0) color = pow(max(pow(color, vec3(2.2)) - directLighting * (1.0 - screenSpaceShadow), vec3(0.0)), vec3(1.0 / 2.2));
+		}
+		#endif
+
 		Fog(color, viewPos, atmosphereColor, z0);
 	}
 

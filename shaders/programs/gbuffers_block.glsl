@@ -108,6 +108,11 @@ void main() {
 
     /* DRAWBUFFERS:0 */
     gl_FragData[0] = albedo;
+
+    #ifdef SCREEN_SPACE_SHADOWS
+    /* DRAWBUFFERS:09 */
+    gl_FragData[1] = vec4(directLighting, albedo.a);
+    #endif
 }
 
 #endif
