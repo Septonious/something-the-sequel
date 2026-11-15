@@ -147,7 +147,7 @@ void main() {
 
     #ifdef SCREEN_SPACE_SHADOWS
     /* DRAWBUFFERS:09 */
-    gl_FragData[1] = vec4(directLighting, albedo.a);
+    gl_FragData[1] = vec4(directLighting * (1.0 - leaves), albedo.a);
     #endif
 
     #ifdef GTAO
