@@ -18,8 +18,8 @@ float getSSAO(vec3 viewPos, vec2 coord, float angleDither, float stepDither) {
     vec2 sampleStep = projectionScale * radius / -viewPos.z;
     float occlusion = 0.0;
 
-    for (int i = 0; i < 6; i++) {
-        float angle = (float(i) + angleDither) * 1.04719755;
+    for (int i = 0; i < 8; i++) {
+        float angle = (float(i) + angleDither) * 0.78539816;
         vec2 direction = vec2(cos(angle), sin(angle)) * sampleStep;
         float horizon = 0.0;
 
@@ -31,11 +31,15 @@ float getSSAO(vec3 viewPos, vec2 coord, float angleDither, float stepDither) {
             vec3 sampleOffset = ToView(vec3(sampleCoord, texture2D(depthtex0, sampleCoord).r)) - viewPos;
             float sampleDistance = length(sampleOffset);
             float sine = clamp(dot(sampleOffset, normal) / max(sampleDistance, 0.001) - 0.05, 0.0, 1.0);
-            horizon = max(horizon, sine * sine * clamp((radius - sampleDistance) / (radius * 0.4), 0.0, 1.0));
+            float occluder = sine * sine * clamp((radius - sampleDistance) / (radius * 0.4), 0.0, 1.0);
+            if (occluder > horizon) {
+                if (texture2D(colortex11, sampleCoord).r > 0.5) occluder *= 0.3;
+                horizon = max(horizon, occluder);
+            }
         }
 
         occlusion += horizon;
     }
 
-    return pow(max(1.0 - occlusion / 6.0, 0.0), AO_STRENGTH * 3.0);
+    return pow(max(1.0 - occlusion / 8.0, 0.0), AO_STRENGTH * 3.0);
 }
