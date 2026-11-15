@@ -10,6 +10,7 @@ void generateIPBR(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, inout ve
     smoothness += 0.03 * lAlbedo * (1.0 - float(subsurface > 0.0));
     #endif
 
+    if (material > 0) {
     #include "/lib/pbr/blocks/amethyst_block.glsl"
     #include "/lib/pbr/blocks/amethyst.glsl"
     #include "/lib/pbr/blocks/anvil.glsl"
@@ -71,6 +72,7 @@ void generateIPBR(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, inout ve
     #include "/lib/pbr/blocks/fire.glsl"
     #include "/lib/pbr/blocks/lava.glsl"
     #endif
+    }
 
     #ifdef GENERATED_EMISSION
     emission = clamp(emission, 0.0, 1.0);

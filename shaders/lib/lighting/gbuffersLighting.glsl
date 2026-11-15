@@ -99,9 +99,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
             worldPosM = mix(centerWorldPos, worldPosM + vec3(0.0, 0.02, 0.0), lightmapS);
         #else
             //Shadow bias without peter-panning
-            float distanceBias = pow(dot(worldPos, worldPos), 0.75);
-                  distanceBias = 0.1 + 0.0004 * distanceBias * (1.0 - float(subsurface > 0.0));
-            vec3 bias = worldNormal * distanceBias * (2.0 - 0.95 * max(NoL, 0.0));
+            vec3 bias = worldNormal * 0.1 * (2.0 - 0.95 * max(NoL, 0.0));
 
             if (subsurface <= 0.0) {
                 vec3 shadowClip = projMAD(shadowProjection, mat3(shadowModelView) * worldPos + shadowModelView[3].xyz);
