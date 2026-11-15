@@ -18,8 +18,7 @@ vec3 getVolumetricShadowPosition(vec3 shadowRayStart, vec3 shadowRayDirection, f
 
 float getVolumetricShadow(vec3 shadowPos) {
     if (shadowPos.x <= 0.0 || shadowPos.x >= 1.0 || shadowPos.y <= 0.0 || shadowPos.y >= 1.0 || shadowPos.z <= 0.0 || shadowPos.z >= 1.0) return 1.0;
-    float depth = texture2D(shadowtex0, shadowPos.xy).r;
-    return clamp((depth - shadowPos.z) * 65536.0, 0.0, 1.0);
+    return shadow2D(shadowtex0, shadowPos).r;
 }
 #endif
 

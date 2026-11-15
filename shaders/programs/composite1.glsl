@@ -31,7 +31,7 @@ float caveFactor = mix(clamp((cameraPosition.y - 56.0) / 16.0, float(sign(isEyeI
 #ifdef VL
 uniform float timeAngle, shadowFade;
 uniform mat4 gbufferModelView, shadowModelView, shadowProjection;
-uniform sampler2D shadowtex0;
+uniform sampler2DShadow shadowtex0;
 uniform vec3 skyColor;
 
 #if defined SHADOW_COLOR && defined VL_COLOR_SHADOWS

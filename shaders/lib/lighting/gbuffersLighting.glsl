@@ -113,7 +113,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
                 vec2 depthSlope = -diagonal3(shadowProjection).z * shadowNormal.xy / (diagonal3(shadowProjection).xy * shadowNormalZ);
                 vec2 clipDirection = shadowClip.xy / max(shadowClipDistance, 0.000001);
                 shadowDepthGradient = 0.2 * distortFactor * (depthSlope + shadowMapBias * shadowClipDistance / (1.0 - shadowMapBias) * dot(depthSlope, clipDirection) * clipDirection);
-                shadowDepthBias = (0.0512 + length(shadowDepthGradient) * 0.75) / float(shadowMapResolution) + 2.0 / 65536.0;
+                shadowDepthBias = (0.0512 + length(shadowDepthGradient) * 1.5) / float(shadowMapResolution) + 2.0 / 65536.0;
                 bias = geometryNormal * 2.0 * shadowDistance / float(shadowMapResolution) * distortFactor;
             }
 

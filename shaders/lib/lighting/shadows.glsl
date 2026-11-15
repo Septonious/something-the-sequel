@@ -1,4 +1,4 @@
-uniform sampler2D shadowtex0;
+uniform sampler2DShadow shadowtex0;
 
 #if defined SHADOW_COLOR || defined VPS
 uniform sampler2D shadowtex1;
@@ -42,14 +42,19 @@ float texture2DShadow(sampler2D shadowtex, vec3 shadowPos) {
 
 #ifdef VPS
 //Variable Penumbra Shadows based on Tech's Lux Shader (https://github.com/TechDevOnGitHub)
-void findBlockerDistance(vec3 shadowPos, mat2 ditherMatrix, inout float offset, float skyLightMap, float vpsFade) {
+void findBlockerDistance(vec3 shadowPos, mat2 ditherMatrix, inout float offset, float skyLightMap, float vpsFade, vec2 depthGradient) {
     float blockerDistance = 0.0;
+    float blockerCount = 0.0;
         
     for (int i = 0; i < 4; i++){
-        vec2 pixelOffset = ditherMatrix * 0.015 * shadowOffsets4[i];
-        blockerDistance += shadowPos.z - texture2D(shadowtex1, shadowPos.xy + pixelOffset).r;
+        vec2 pixelOffset = ditherMatrix * offset * 6.0 * shadowOffsets4[i];
+        float depthDifference = shadowPos.z + dot(depthGradient, pixelOffset) - texture2D(shadowtex1, shadowPos.xy + pixelOffset).r;
+        if (depthDifference > 0.0) {
+            blockerDistance += depthDifference;
+            blockerCount += 1.0;
+        }
     }
-    blockerDistance *= 0.25;
+    if (blockerCount > 0.0) blockerDistance /= blockerCount;
     
     offset = mix(offset, clamp(blockerDistance * VPS_BLUR_STRENGTH, offset, offset * 6.0), skyLightMap * vpsFade);
 }
@@ -70,7 +75,7 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
 	mat2 ditherMatrix = mat2(cosTheta, -sinTheta, sinTheta, cosTheta);
 
     #ifdef VPS
-    if (subsurface < 0.1 && vpsFade > 0.0 && skyLightMap > 0.05) findBlockerDistance(shadowPos, ditherMatrix, offset, skyLightMap, vpsFade);
+    if (subsurface < 0.1 && vpsFade > 0.0 && skyLightMap > 0.05) findBlockerDistance(shadowPos, ditherMatrix, offset, skyLightMap, vpsFade, depthGradient);
     #endif
 
     for (int i = 0; i < SHADOW_FILTER_SAMPLES; i++) {
@@ -79,7 +84,7 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
         #else
         vec2 shadowOffset = ditherMatrix * offset * shadowOffsets8[i];
         #endif
-        shadow0 += texture2DShadow(shadowtex0, vec3(shadowPos.st + shadowOffset, shadowPos.z + dot(depthGradient, shadowOffset)));
+        shadow0 += shadow2D(shadowtex0, vec3(shadowPos.st + shadowOffset, shadowPos.z + dot(depthGradient, shadowOffset))).r;
     }
     shadow0 *= 1.0 / float(SHADOW_FILTER_SAMPLES);
 
