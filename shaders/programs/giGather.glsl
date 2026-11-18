@@ -69,7 +69,7 @@ void main() {
     vec3 worldPos = ToWorld(viewPos);
     vec3 voxelPos = worldToVoxel(worldPos);
     vec4 gi = vec4(0.0, 0.0, 0.0, 1.0);
-    float blockVisibility = 1.0;
+    float blockLuminance = 0.0;
     float inverseHitDistance = 1.0 / 32.25;
     float historyLength = 0.0;
 
@@ -112,21 +112,18 @@ void main() {
 
         if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
             gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec), 0.0);
+            blockLuminance = giHitBlockLuminance;
             inverseHitDistance = 1.0 / (hitDistance + 0.25);
         }
-
-        #ifdef GI_BLOCK_SHADOWS
-        vec3 floodfillPos = (voxelPos + worldNormal) / voxelVolumeSize;
-        vec3 floodfill = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, floodfillPos).rgb : texture3D(floodfillSampler, floodfillPos).rgb;
-
-        if (maxOf(floodfill) > 0.0001) blockVisibility = giBlockVisibility(origin, worldNormal);
-        #endif
 
         vec4 previousView = gbufferPreviousModelView * vec4(worldPos + cameraPosition - previousCameraPosition, 1.0);
         vec4 previousClip = gbufferPreviousProjection * previousView;
         vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5 + texCoord - coord;
 
-        if (any(isnan(gi)) || any(isinf(gi))) gi = vec4(0.0, 0.0, 0.0, 1.0);
+        if (any(isnan(gi)) || any(isinf(gi))) {
+            gi = vec4(0.0, 0.0, 0.0, 1.0);
+            blockLuminance = 0.0;
+        }
 
         if (clamp(previousCoord, 0.0, 1.0) == previousCoord) {
             vec4 history = texture2D(colortex15, previousCoord);
@@ -135,7 +132,7 @@ void main() {
             if (abs(history.r + previousView.z) < 0.1 - previousView.z * 0.05 && !any(isnan(history)) && !any(isnan(historyGi)) && !any(isinf(historyGi))) {
                 historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
                 gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
-                blockVisibility = mix(clamp(history.b, 0.0, 1.0), blockVisibility, 1.0 / (historyLength + 1.0));
+                blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
                 inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
             }
         }
@@ -143,7 +140,10 @@ void main() {
         if (historyLength < 0.5) {
             vec4 prior = giCacheFetch(ivec3(floor(origin)));
 
-            if (prior.a >= 0.0) gi = mix(prior, gi, 0.25);
+            if (prior.a >= 0.0) {
+                gi = mix(prior, gi, 0.25);
+                blockLuminance *= 0.25;
+            }
         }
 
         historyLength += 1.0;
@@ -151,7 +151,7 @@ void main() {
 
     /* RENDERTARGETS: 14,15 */
     gl_FragData[0] = gi;
-    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockVisibility, inverseHitDistance);
+    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockLuminance, inverseHitDistance);
 }
 
 #endif

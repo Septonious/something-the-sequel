@@ -1,6 +1,7 @@
 const int giTraceSteps = GI_RAY_STEPS;
 
 uint giSeed = 0u;
+float giHitBlockLuminance = 0.0;
 
 float giRandom() {
 	giSeed = giSeed * 747796405u + 2891336453u;
@@ -214,6 +215,9 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 	vec4 cached = giCacheFetch(hitCell + hitFace);
 	vec3 ambient = cached.a < 0.0 ? vec3(0.0) : ambientCol * cached.a * clamp(skyLight * 8.0, 0.0, 1.0) + cached.rgb * GI_MULTI_BOUNCE;
 	vec3 lighting = mix(ambient, lightCol * (0.15 + skyLight * 0.85), sunLight) + blockLight;
+	vec3 surface = giVoxelAlbedo(hitWord) * vanillaDiffuse;
 
-	return giVoxelAlbedo(hitWord) * vanillaDiffuse * lighting;
+	giHitBlockLuminance = dot(surface * blockLight, vec3(0.2126, 0.7152, 0.0722));
+
+	return surface * lighting;
 }

@@ -39,11 +39,9 @@ void main() {
         vec3 tangent = normalize(cross(normal, viewDirection + vec3(0.0, 0.001, 0.0)));
         vec3 bitangent = cross(normal, tangent) * max(1.0, minRadius / (radius * max(abs(dot(normal, viewDirection)), 0.1)));
         float blur = clamp(4.0 / max(surface.g, 1.0), 0.05, 1.0) * GI_FILTER;
-        float shadowBlur = minRadius * minRadius / (radius * radius);
-        float blockVisibility = surface.b;
+        float blockLuminance = surface.b;
         float inverseHitDistance = surface.a;
         float weightSum = 1.0;
-        float shadowWeightSum = 1.0;
 
         for (int i = 0; i < 8; i++) {
             float angle = rotation + float(i) * 2.39996323;
@@ -58,14 +56,13 @@ void main() {
             float weight = clamp(1.0 - abs(dot(tapPos - viewPos, normal)) / (0.05 + tapSurface.r * 0.01), 0.0, 1.0) * blur;
 
             gi += tapGi * weight;
-            blockVisibility += tapSurface.b * weight * shadowBlur;
+            blockLuminance += tapSurface.b * weight;
             inverseHitDistance += tapSurface.a * weight;
             weightSum += weight;
-            shadowWeightSum += weight * shadowBlur;
         }
 
         gi /= weightSum;
-        surface.b = blockVisibility / shadowWeightSum;
+        surface.b = blockLuminance / weightSum;
         surface.a = inverseHitDistance / weightSum;
     }
 

@@ -285,6 +285,7 @@ void main() {
 			vec2 giPos = (texCoord * vec2(textureSize(depthtex0, 0)) - (float(GI_RESOLUTION / 4) + 0.5)) / float(GI_RESOLUTION);
 			vec2 giBase = floor(giPos) - 1.0;
 			vec4 gi = vec4(0.0);
+			float giBlockLuminance = 0.0;
 			float giWeight = 0.0;
 
 			for (int i = 0; i < 16; i++) {
@@ -294,15 +295,18 @@ void main() {
 				vec4 giTapSurface = texture2D(colortex15, giCoord);
 				float weight = tent.x * tent.y / (0.01 + abs(giTapSurface.r + viewPos.z) / -viewPos.z);
 				gi += texture2D(colortex14, giCoord) * weight;
+				giBlockLuminance += giTapSurface.b * weight;
 				giWeight += weight;
 			}
 			gi /= giWeight;
+			giBlockLuminance /= giWeight;
 
 			#if GI_DEBUG == 4
 			gi = vec4(0.0);
 			#endif
 
 			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
+			float lightWeight = max(1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
 			vec3 giDelta = giAmbientDelta(gi, giSurface.g, viewPos);
 
 			#if GI_DEBUG == 8
@@ -312,7 +316,7 @@ void main() {
 			#elif GI_DEBUG == 10
 			color = vec3(giBlockVisibility);
 			#else
-			color = pow(max(pow(color, vec3(2.2)) + max(giReceptor * receptorWeight * giDelta, 0.0), vec3(0.0)), vec3(1.0 / 2.2));
+			color = pow(max(pow(color, vec3(2.2)) + max(giReceptor * receptorWeight * giDelta, 0.0) + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance), vec3(0.0)), vec3(1.0 / 2.2));
 			#endif
 		}
 		#endif

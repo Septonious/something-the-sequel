@@ -507,3 +507,6 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 
 #ifdef VL_COLOR_SHADOWS
 #endif
+
+#ifdef GI_BLOCK_SHADOWS
+#endif
