@@ -37,6 +37,12 @@ uniform sampler2D texture, noisetex;
 #ifdef VX_SUPPORT
 uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform usampler3D voxelSampler;
+
+#if AO_TYPE == 0
+in float aoFull;
+
+uniform usampler3D aoLatticeSampler;
+#endif
 #endif
 
 uniform mat4 gbufferProjectionInverse;
@@ -85,6 +91,11 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 
 #include "/lib/lighting/lightning.glsl"
 #include "/lib/lighting/shadows.glsl"
+
+#if AO_TYPE == 0 && defined VX_SUPPORT
+#include "/lib/lighting/aoLattice.glsl"
+#endif
+
 #include "/lib/lighting/gbuffersLighting.glsl"
 
 #ifdef GENERATED_EMISSION
@@ -185,6 +196,10 @@ out vec3 normal;
 out vec2 texCoord, lmCoord;
 flat out int mat;
 
+#if AO_TYPE == 0 && defined VX_SUPPORT
+out float aoFull;
+#endif
+
 // Uniforms //
 #ifdef TAA
 uniform float viewWidth, viewHeight;
@@ -204,6 +219,10 @@ attribute vec4 mc_Entity;
 
 #if defined WAVING_PLANTS || defined WAVING_LEAVES
 attribute vec4 mc_midTexCoord;
+#endif
+
+#if AO_TYPE == 0 && defined VX_SUPPORT
+attribute vec3 at_midBlock;
 #endif
 
 // Includes //
@@ -227,6 +246,10 @@ void main() {
     normal = normalize(gl_NormalMatrix * gl_Normal);
 
     mat = int(mc_Entity.x + 0.5);
+
+    #if AO_TYPE == 0 && defined VX_SUPPORT
+    aoFull = float(all(greaterThanEqual(abs(at_midBlock), vec3(31.0))));
+    #endif
 
 	//Position
 	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;

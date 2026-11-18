@@ -17,7 +17,11 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
                       in float subsurface, in float emission, in float smoothness, in float parallaxShadow, in float metalness, in float f0) {
     //Variables
     float lAlbedo = length(albedo.rgb);
+    #if defined GBUFFERS_TERRAIN && AO_TYPE == 0 && defined VX_SUPPORT
+    float vanillaAo = pow2(getAoLattice(worldPos));
+    #else
     float vanillaAo = color.a * color.a;
+    #endif
     float emissionMask = clamp(emission, 0.0, 1.0);
     vec3 worldNormal = normalize(mat3(gbufferModelViewInverse) * newNormal);
 

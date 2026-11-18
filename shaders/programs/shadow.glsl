@@ -79,6 +79,10 @@ uniform int renderStage;
 uniform vec3 cameraPosition;
 
 writeonly uniform uimage3D voxel_img;
+
+#if AO_TYPE == 0
+layout(r32ui) uniform uimage3D ao_lattice_img;
+#endif
 #endif
 
 #ifdef GI
@@ -107,6 +111,10 @@ attribute vec4 mc_Entity;
 // Includes //
 #ifdef VX_SUPPORT
 #include "/lib/vx/voxelization.glsl"
+
+#if AO_TYPE == 0
+#include "/lib/lighting/aoLattice.glsl"
+#endif
 #endif
 
 #ifdef GI
@@ -125,6 +133,10 @@ void main() {
     // Voxelization //
 	#ifdef VX_SUPPORT
     if (gl_VertexID % 4 == 0) updateVoxelMap(int(max(mc_Entity.x - 10000, 0)));
+
+	#if AO_TYPE == 0
+	updateAoLattice();
+	#endif
 	#endif
 
 	#ifdef GI
