@@ -87,6 +87,7 @@ layout(r32ui) uniform uimage3D ao_lattice_img;
 
 #ifdef GI
 uniform int frameCounter;
+uniform int blockEntityId;
 
 uniform vec3 previousCameraPosition;
 
@@ -107,6 +108,7 @@ uniform mat4 shadowModelViewInverse;
 attribute vec3 at_midBlock;
 attribute vec4 mc_midTexCoord;
 attribute vec4 mc_Entity;
+attribute vec4 at_tangent;
 
 // Includes //
 #ifdef VX_SUPPORT
@@ -155,6 +157,10 @@ void main() {
 	
 	gl_Position.xy *= 1.0 / distortFactor;
 	gl_Position.z = gl_Position.z * 0.2;
+
+	#ifdef GI
+	if (renderStage == MC_RENDER_STAGE_ENTITIES && blockEntityId != 0) gl_Position = vec4(-10.0, -10.0, -10.0, 1.0);
+	#endif
 }
 
 #endif

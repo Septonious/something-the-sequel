@@ -38,6 +38,12 @@ uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform usampler3D voxelSampler;
 #endif
 
+#ifdef GI
+uniform int blockEntityId;
+
+uniform sampler3D giCacheSampler, giCacheSamplerCopy;
+#endif
+
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -86,6 +92,10 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/shadows.glsl"
 #include "/lib/lighting/gbuffersLighting.glsl"
 
+#ifdef GI
+#include "/lib/vx/giApply.glsl"
+#endif
+
 // Main //
 void main() {
     vec4 albedo = texture2D(texture, texCoord) * color;
@@ -105,6 +115,37 @@ void main() {
 
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, subsurface, emission, 0.0, 0.0, 0.0, 0.0);
+
+    #ifdef GI
+    if (blockEntityId == 10086) {
+        vec3 cachePos = worldToVoxel(worldPos) + mat3(gbufferModelViewInverse) * newNormal * 0.5 - 0.5;
+        vec3 cacheBlend = fract(cachePos);
+        vec4 gi = vec4(0.0);
+        float giWeight = 0.0;
+
+        for (int i = 0; i < 8; i++) {
+            ivec3 corner = ivec3(i & 1, (i >> 1) & 1, i >> 2);
+            ivec3 cell = ivec3(floor(cachePos)) + corner;
+
+            if (clamp(cell, ivec3(0), ivec3(voxelVolumeSize) - 1) != cell) continue;
+
+            vec4 cached = (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, cell, 0) : texelFetch(giCacheSampler, cell, 0);
+            vec3 side = mix(1.0 - cacheBlend, cacheBlend, vec3(corner));
+
+            if (cached.a < 0.0) continue;
+
+            gi += cached * (side.x * side.y * side.z);
+            giWeight += side.x * side.y * side.z;
+        }
+
+        if (giWeight > 0.01) {
+            float giFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
+                  giFade = 1.0 - giFade * giFade;
+
+            albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * giFade * (1.0 - giSurface.y) * giAmbientDelta(gi / giWeight, giSurface.x, viewPos), vec3(0.0)), vec3(1.0 / 2.2));
+        }
+    }
+    #endif
 
     /* DRAWBUFFERS:0 */
     gl_FragData[0] = albedo;

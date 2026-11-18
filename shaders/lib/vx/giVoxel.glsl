@@ -35,17 +35,29 @@ uint giHash(uint value) {
 }
 
 void updateVoxelGi(int blockId, float skyLight) {
-	if (blockId == 10001 || !any(equal(ivec4(renderStage), ivec4(MC_RENDER_STAGE_TERRAIN_SOLID, MC_RENDER_STAGE_TERRAIN_TRANSLUCENT, MC_RENDER_STAGE_TERRAIN_CUTOUT, MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED)))) return;
+	bool head = blockEntityId == 10086;
 
-	vec3 modelPos = gl_Vertex.xyz + at_midBlock / 64.0;
+	if (!head && (blockId == 10001 || !any(equal(ivec4(renderStage), ivec4(MC_RENDER_STAGE_TERRAIN_SOLID, MC_RENDER_STAGE_TERRAIN_TRANSLUCENT, MC_RENDER_STAGE_TERRAIN_CUTOUT, MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED))))) return;
+
+	vec3 midBlock = head ? vec3(0.0) : at_midBlock;
+	vec3 modelPos = gl_Vertex.xyz + midBlock / 64.0;
 	vec3 viewPos  = mat3(gl_ModelViewMatrix) * modelPos + gl_ModelViewMatrix[3].xyz;
 	vec3 shadowPos = mat3(shadowModelViewInverse) * viewPos + shadowModelViewInverse[3].xyz;
 	vec3 voxelPos = worldToVoxel(shadowPos);
 
+	if (head) {
+		vec2 uvSide = sign(gl_MultiTexCoord0.xy - mc_midTexCoord.xy);
+		vec3 outward = gl_Normal + at_tangent.xyz * uvSide.x + cross(at_tangent.xyz, gl_Normal) * (at_tangent.w * uvSide.y);
+
+		blockId = 0;
+		midBlock = (floor(voxelPos - mat3(shadowModelViewInverse) * (mat3(gl_ModelViewMatrix) * outward) * 0.1) + 0.5 - voxelPos) * 64.0;
+		voxelPos += midBlock / 64.0;
+	}
+
 	if (!isInsideVoxelVolume(voxelPos)) return;
 
 	bool plant = (blockId >= 10304 && blockId <= 10319 && blockId != 10314) || (blockId >= 10035 && blockId <= 10040);
-	bool corner = all(greaterThanEqual(abs(at_midBlock), vec3(31.0)));
+	bool corner = all(greaterThanEqual(abs(midBlock), vec3(31.0)));
 	ivec3 cell = ivec3(voxelPos);
 	ivec3 previousCell = cell + ivec3(floor(cameraPosition) - floor(previousCameraPosition));
 	int quadVertex = gl_VertexID & 3;
@@ -65,7 +77,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 		uint keyA = giHash(quadId + giHash(cellIndex)) | 1u;
 		uint keyB = giHash(cellIndex + giHash(quadId ^ 0x85ebca6bu)) | 1u;
 		uint slot = keyA & 262143u;
-		uvec3 point = uvec3(clamp(floor((0.5 - at_midBlock / 64.0) * 32.0 + 0.5), 0.0, 32.0));
+		uvec3 point = uvec3(clamp(floor((0.5 - midBlock / 64.0) * 32.0 + 0.5), 0.0, 32.0));
 		uint uvCorner = uint(gl_MultiTexCoord0.x > mc_midTexCoord.x) | (uint(gl_MultiTexCoord0.y > mc_midTexCoord.y) << 1u);
 		uint entry = point.x | (point.y << 6u) | (point.z << 12u) | ((quadVertex == 0 ? cellIndex & 16383u : (quadVertex == 1 ? (cellIndex >> 14u) | (uvCorner << 9u) : uvCorner)) << 18u);
 		uvec2 alphaMask = uvec2(0u);
@@ -108,6 +120,9 @@ void updateVoxelGi(int blockId, float skyLight) {
 	if (quadVertex != 0 && corner) return;
 
 	vec4 texel = texture2DLod(tex, mc_midTexCoord.xy, 4.0);
+
+	if (head && texel.a < 0.5) return;
+
 	uvec3 albedo = uvec3(clamp(texel.rgb * gl_Color.rgb, 0.0, 1.0) * 127.0 + 0.5);
 	uint priority = gl_Normal.y > 0.5 ? 3u : (gl_Normal.y > -0.5 ? 2u : 1u);
 	uint word = (corner ? 0u : 0x80000000u) | (uint(texel.a < 0.5 || (blockId >= 10201 && blockId <= 10216)) << 30u) | (priority << 28u) | (uint(blockId == 10314) << 27u) | (uint(plant) << 26u) | (uint(clamp(skyLight, 0.0, 1.0) * 31.0 + 0.5) << 21u) | (albedo.r << 14u) | (albedo.g << 7u) | albedo.b;
