@@ -98,7 +98,7 @@ void main() {
 				slot = pick % (slot + 1u);
 			}
 
-			if (slot < 15u) imageStore(light_grid_img, ivec3(gridCell.x * 16 + 1 + int(slot), gridCell.yz), uvec4(uint(pos.x) | (uint(pos.y) << 10u) | (uint(pos.z) << 20u), 0u, 0u, 0u));
+			if (slot < 15u) imageStore(light_grid_img, ivec3(gridCell.x * 16 + 1 + int(slot), gridCell.yz), uvec4(uint(pos.x) | (uint(pos.y) << 10u) | (uint(pos.z) << 20u) | (uint(clamp(maxOf(color) * 3.0 + 0.5, 1.0, 3.0)) << 30u), 0u, 0u, 0u));
 		}
 		#endif
 

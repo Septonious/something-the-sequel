@@ -25,6 +25,9 @@ uniform usampler3D lightGridSampler;
 uniform usampler3D voxelBoxSampler;
 uniform usampler3D quadPoolSampler;
 
+layout(rgba32ui) uniform uimage2D gi_guide_img;
+layout(rgba32f) uniform image2D gi_far_img;
+
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
@@ -61,6 +64,77 @@ vec4 giCacheFetch(ivec3 cell) {
 #include "/lib/vx/giTrace.glsl"
 #include "/lib/vx/giNormal.glsl"
 
+ivec3 giGuideCell(uint code) {
+    return ivec3(code & 255u, (code >> 8u) & 127u, (code >> 15u) & 255u);
+}
+
+float giGuideWeight(uint code) {
+    return (code >> 23u) == 0u ? 0.0 : exp2((float(code >> 23u) - 256.0) / 8.0);
+}
+
+uint giGuidePack(ivec3 cell, float weight, float dither) {
+    if (!(weight > 0.0) || clamp(cell, ivec3(0), ivec3(255, 127, 255)) != cell) return 0u;
+
+    return uint(cell.x) | (uint(cell.y) << 8u) | (uint(cell.z) << 15u) | (uint(clamp(floor(log2(weight) * 8.0 + 256.0 + dither), 1.0, 511.0)) << 23u);
+}
+
+vec4 giCachePrior(vec3 position) {
+    vec3 base = floor(position - 0.5);
+    vec3 blend = position - 0.5 - base;
+    vec4 total = vec4(0.0);
+    float weightSum = 0.0;
+
+    for (int i = 0; i < 8; i++) {
+        vec3 corner = vec3(i & 1, (i >> 1) & 1, i >> 2);
+        vec4 value = giCacheFetch(ivec3(base + corner));
+        vec3 side = mix(1.0 - blend, blend, corner);
+
+        if (value.a < 0.0) continue;
+
+        total += value * (side.x * side.y * side.z);
+        weightSum += side.x * side.y * side.z;
+    }
+
+    return weightSum > 0.01 ? total / weightSum : vec4(0.0, 0.0, 0.0, -1.0);
+}
+
+float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 high) {
+    low = vec3(cell);
+    high = low + 1.0;
+
+    if (all(greaterThanEqual(cell, ivec3(0))) && all(lessThan(cell, ivec3(voxelVolumeSize)))) {
+        uint bounds = texelFetch(voxelBoxSampler, ivec3(cell.x * 2 + 1, cell.yz), 0).r;
+
+        if (bounds != 0u) {
+            uvec3 boundBits = uvec3(bounds & 511u, (bounds >> 9u) & 511u, bounds >> 18u);
+
+            high = low + vec3(findMSB(boundBits)) * 0.125;
+            low += vec3(findLSB(boundBits)) * 0.125;
+        }
+    }
+
+    vec3 extent = high - low;
+
+    if (dot(normal, (low + high) * 0.5 - origin) + dot(abs(normal), extent) * 0.5 <= 0.0) return 0.0;
+
+    return dot(vec3(lessThan(origin, low)) + vec3(greaterThan(origin, high)), extent.yzx * extent.zxy);
+}
+
+float giGuideDensity(vec3 origin, vec3 direction, vec3 low, vec3 high, float area) {
+    vec3 slope = direction + vec3(lessThan(abs(direction), vec3(0.000001))) * 0.000002;
+    vec3 planeA = (low - origin) / slope;
+    vec3 planeB = (high - origin) / slope;
+    vec3 enter = min(planeA, planeB);
+    vec3 leave = max(planeA, planeB);
+    float reach = max(enter.x, max(enter.y, enter.z));
+
+    if (reach <= 0.0 || reach > min(leave.x, min(leave.y, leave.z))) return 0.0;
+
+    float facing = reach == enter.x ? abs(direction.x) : (reach == enter.y ? abs(direction.y) : abs(direction.z));
+
+    return reach * reach / (max(facing, 0.000001) * area);
+}
+
 void main() {
     vec2 viewSize = vec2(textureSize(depthtex0, 0));
     vec2 coord = (floor(texCoord * viewSize - 0.5) + 0.5) / viewSize;
@@ -72,6 +146,7 @@ void main() {
     float blockLuminance = 0.0;
     float inverseHitDistance = 1.0 / 32.25;
     float historyLength = 0.0;
+    int face = 0;
 
     #if GI_DEBUG == 12
     ivec3 debugCell, debugFace;
@@ -105,53 +180,248 @@ void main() {
         giRandom();
 
         vec3 origin = voxelPos + worldNormal * 0.05;
+        vec3 luminance = vec3(0.2126, 0.7152, 0.0722);
+
+        vec4 previousView = gbufferPreviousModelView * vec4(worldPos + cameraPosition - previousCameraPosition, 1.0);
+        vec4 previousClip = gbufferPreviousProjection * previousView;
+        vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5 + texCoord - coord;
+        vec4 history = vec4(0.0);
+        vec4 historyGi = vec4(0.0);
+        vec4 historyFar = vec4(0.0);
+        float historyWeight = 0.0;
+
+        face = giFace(worldNormal);
+
+        if (clamp(previousCoord, 0.0, 1.0) == previousCoord) {
+            ivec2 historySize = textureSize(colortex14, 0);
+            vec2 historyPos = previousCoord * vec2(historySize) - 0.5;
+            ivec2 historyBase = ivec2(floor(historyPos));
+            vec2 historyBlend = historyPos - vec2(historyBase);
+
+            for (int i = 0; i < 13; i++) {
+                if (i == 4 && historyWeight > 0.0) break;
+
+                ivec2 offset = i < 4 ? ivec2(i & 1, i >> 1) : ivec2((i - 4) % 3, (i - 4) / 3) - 1 + ivec2(round(historyBlend));
+                ivec2 tap = clamp(historyBase + offset, ivec2(0), historySize - 1);
+                vec4 tapSurface = texelFetch(colortex15, tap, 0);
+                vec4 tapGi = texelFetch(colortex14, tap, 0);
+                vec2 blend = mix(1.0 - historyBlend, historyBlend, vec2(offset));
+                float weight = i < 4 ? blend.x * blend.y : 1.0;
+
+                if (giStoredFace(tapSurface) != face || abs(abs(tapSurface.r) + previousView.z) >= 0.1 - previousView.z * 0.05 || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
+
+                vec4 tapFar = imageLoad(gi_far_img, min(tap, imageSize(gi_far_img) - 1));
+
+                history += abs(tapSurface) * weight;
+                historyGi += tapGi * weight;
+                historyWeight += weight;
+
+                if (!(any(isnan(tapFar)) || any(isinf(tapFar)))) historyFar += tapFar * weight;
+            }
+        }
+
+        bool reprojected = historyWeight > 0.0;
+        bool seeded = false;
+
+        if (reprojected) {
+            history /= historyWeight;
+            historyGi /= historyWeight;
+            historyFar /= historyWeight;
+        } else {
+            historyGi = giCachePrior(voxelPos + worldNormal * 0.5);
+            seeded = historyGi.a >= 0.0;
+
+            if (seeded) history = vec4(0.0, 16.0, 0.0, 1.0 / 32.25);
+            else historyGi = vec4(0.0);
+        }
+
+        ivec2 guideSize = imageSize(gi_guide_img);
+        ivec2 guidePixel = min(ivec2(gl_FragCoord.xy), guideSize - 1);
+        ivec3 cellShift = ivec3(floor(previousCameraPosition) - floor(cameraPosition));
+        uvec4 guide = reprojected ? imageLoad(gi_guide_img, min(ivec2(previousCoord * vec2(guideSize)), guideSize - 1)) : uvec4(0u);
+        float offsetX = giRandom();
+        float offsetY = giRandom();
+        ivec2 neighbourPixel = clamp(guidePixel + ivec2((vec2(offsetX, offsetY) - 0.5) * (history.g > 24.0 ? 24.0 : 96.0)), ivec2(0), guideSize - 1);
+        uvec4 neighbour = imageLoad(gi_guide_img, neighbourPixel);
+
+        if (seeded) {
+            vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, imageSize(gi_far_img) - 1));
+
+            if (nearFar.a > 8.0 && !any(isnan(nearFar))) historyFar.rgb = historyGi.rgb * clamp(dot(nearFar.rgb, luminance) / max(dot(texelFetch(colortex14, min(neighbourPixel, textureSize(colortex14, 0) - 1), 0).rgb, luminance), 0.000001), 0.0, 0.5);
+        }
+        float guideLuminance = uintBitsToFloat(guide.a);
+        ivec3 slotCells[3];
+        float slotWeights[3];
+        int weakest = 0;
+        int strongest = 0;
+
+        if (isnan(guideLuminance) || isinf(guideLuminance)) guideLuminance = 0.0;
+
+        for (int i = 0; i < 3; i++) {
+            slotCells[i] = giGuideCell(guide[i]) + cellShift;
+            slotWeights[i] = giGuideWeight(guide[i]) * 0.98;
+
+            if (slotWeights[i] < slotWeights[weakest]) weakest = i;
+            if (giGuideWeight(neighbour[i]) > giGuideWeight(neighbour[strongest])) strongest = i;
+        }
+
+        ivec3 strongestCell = giGuideCell(neighbour[strongest]) + cellShift;
+
+        if (giGuideWeight(neighbour[strongest]) > slotWeights[weakest] * 2.0 && strongestCell != slotCells[0] && strongestCell != slotCells[1] && strongestCell != slotCells[2]) {
+            slotCells[weakest] = strongestCell;
+            slotWeights[weakest] = giGuideWeight(neighbour[strongest]) * 0.25;
+        }
+
+        vec3 boxLow[3];
+        vec3 boxHigh[3];
+        float boxAreas[3];
+        float boxWeights[3];
+        float boxTotal = 0.0;
+        float guideProbability = 0.0;
+
+        for (int i = 0; i < 3; i++) {
+            boxAreas[i] = giGuideBox(slotCells[i], origin, worldNormal, boxLow[i], boxHigh[i]);
+            boxWeights[i] = slotWeights[i] > 0.0 && boxAreas[i] > 0.0 ? slotWeights[i] : 0.0;
+            boxTotal += boxWeights[i];
+        }
+
+        if (boxTotal > 0.0) guideProbability = clamp(guideLuminance / max(dot(historyGi.rgb, luminance) * GI_STRENGTH + historyGi.a * dot(ambientCol, luminance), 0.000001), reprojected && history.g > 32.0 ? 0.015625 : 0.125, 0.5);
+
         vec3 direction = giCosineDirection(worldNormal, point);
+        float sampleWeight = 1.0;
+        bool insideBox = false;
+
+        if (guideProbability > 0.0) {
+            int chosen = -1;
+            float chosenDensity = 0.0;
+
+            if (giRandom() < guideProbability) {
+                float pick = giRandom() * boxTotal;
+
+                for (int i = 0; i < 3; i++) {
+                    if (boxWeights[i] <= 0.0) continue;
+
+                    chosen = i;
+
+                    if (pick < boxWeights[i]) break;
+
+                    pick -= boxWeights[i];
+                }
+
+                vec3 extent = boxHigh[chosen] - boxLow[chosen];
+                vec3 faceAreas = (vec3(lessThan(origin, boxLow[chosen])) + vec3(greaterThan(origin, boxHigh[chosen]))) * extent.yzx * extent.zxy;
+                float facePick = giRandom() * boxAreas[chosen];
+                int axis = faceAreas.z > 0.0 ? 2 : (faceAreas.y > 0.0 ? 1 : 0);
+
+                if (facePick < faceAreas.x + faceAreas.y && faceAreas.y > 0.0) axis = 1;
+                if (facePick < faceAreas.x) axis = 0;
+
+                vec3 target = boxLow[chosen] + extent * (axis == 0 ? vec3(0.0, point) : (axis == 1 ? vec3(point.x, 0.0, point.y) : vec3(point, 0.0)));
+
+                target[axis] = origin[axis] < boxLow[chosen][axis] ? boxLow[chosen][axis] : boxHigh[chosen][axis];
+
+                vec3 toTarget = target - origin;
+
+                direction = normalize(toTarget);
+                chosenDensity = dot(toTarget, toTarget) / (max(abs(direction[axis]), 0.000001) * boxAreas[chosen]);
+            }
+
+            float facing = max(dot(worldNormal, direction), 0.0);
+            float cosinePdf = facing * facing > 0.001999 ? (2.0 * facing * facing - 0.001999) / (6.27690212 * sqrt(facing * facing - 0.001999)) : 0.0;
+            float boxDensity = 0.0;
+
+            for (int i = 0; i < 3; i++) {
+                if (boxWeights[i] > 0.0) boxDensity += boxWeights[i] * (i == chosen ? chosenDensity : giGuideDensity(origin, direction, boxLow[i], boxHigh[i], boxAreas[i]));
+            }
+
+            insideBox = boxDensity > 0.0;
+            sampleWeight = cosinePdf > 0.0 ? cosinePdf / mix(cosinePdf, boxDensity / boxTotal, guideProbability) : 0.0;
+        }
+
         ivec3 hitCell, hitFace;
         float hitDistance;
         uint hitWord;
+        bool hit = sampleWeight > 0.0 && giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord);
 
-        if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
+        if (hit) {
             gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec), 0.0);
             blockLuminance = giHitBlockLuminance;
             inverseHitDistance = 1.0 / (hitDistance + 0.25);
         }
 
-        vec4 previousView = gbufferPreviousModelView * vec4(worldPos + cameraPosition - previousCameraPosition, 1.0);
-        vec4 previousClip = gbufferPreviousProjection * previousView;
-        vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5 + texCoord - coord;
+        gi.rgb += giPassLight;
+        blockLuminance += dot(giPassLight, luminance);
 
         if (any(isnan(gi)) || any(isinf(gi))) {
             gi = vec4(0.0, 0.0, 0.0, 1.0);
             blockLuminance = 0.0;
         }
 
-        if (clamp(previousCoord, 0.0, 1.0) == previousCoord) {
-            vec4 history = texture2D(colortex15, previousCoord);
-            vec4 historyGi = texture2D(colortex14, previousCoord);
+        float radiance = dot(gi.rgb, luminance) * GI_STRENGTH + gi.a * dot(ambientCol, luminance);
+        float candidateWeight = radiance * radiance * sampleWeight;
+        ivec3 candidateCell = clamp(hit ? ivec3(floor(origin + direction * hitDistance - vec3(hitFace) * 0.01)) : ivec3(origin + direction * 32.0), ivec3(0), ivec3(voxelVolumeSize) - 1);
 
-            if (abs(history.r + previousView.z) < 0.1 - previousView.z * 0.05 && !any(isnan(history)) && !any(isnan(historyGi)) && !any(isinf(historyGi))) {
-                historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
-                gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
-                blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
-                inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
+        if (dot(giPassLight, luminance) * GI_STRENGTH > radiance * 0.5) candidateCell = giPassCell;
+
+        weakest = slotWeights[1] < slotWeights[0] ? 1 : 0;
+        weakest = slotWeights[2] < slotWeights[weakest] ? 2 : weakest;
+
+        if (candidateWeight > 0.0) {
+            if (slotWeights[0] > 0.0 && candidateCell == slotCells[0]) {
+                slotWeights[0] += candidateWeight;
+            } else if (slotWeights[1] > 0.0 && candidateCell == slotCells[1]) {
+                slotWeights[1] += candidateWeight;
+            } else if (slotWeights[2] > 0.0 && candidateCell == slotCells[2]) {
+                slotWeights[2] += candidateWeight;
+            } else if (giRandom() * (slotWeights[weakest] + candidateWeight) < candidateWeight) {
+                slotCells[weakest] = candidateCell;
+                slotWeights[weakest] = candidateWeight;
             }
         }
 
-        if (historyLength < 0.5) {
-            vec4 prior = giCacheFetch(ivec3(floor(origin)));
+        gi *= sampleWeight;
+        blockLuminance *= sampleWeight;
+        inverseHitDistance *= sampleWeight;
 
-            if (prior.a >= 0.0) {
-                gi = mix(prior, gi, 0.25);
-                blockLuminance *= 0.25;
-            }
+        float farLength = min(historyFar.a, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75) * 8.0);
+        bool stray = hit && giHitBlockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
+        vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 241.0));
+
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(farLight, farLength + 1.0));
+
+        if (stray) {
+            gi.rgb = vec3(0.0);
+            blockLuminance = 0.0;
         }
+
+        gi.rgb += farLight;
+        blockLuminance += dot(farLight, luminance);
+
+        float guideSample = insideBox ? radiance * sampleWeight : 0.0;
+
+        if (reprojected || seeded) {
+            historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
+            gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
+            blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
+            inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
+            guideSample = mix(guideLuminance, guideSample, 1.0 / (historyLength + 1.0));
+        }
+
+        uvec4 guideState = uvec4(0u, 0u, 0u, floatBitsToUint(guideSample));
+
+        for (int i = 0; i < 3; i++) guideState[i] = giGuidePack(slotCells[i], slotWeights[i], giRandom());
+
+        imageStore(gi_guide_img, guidePixel, guideState);
 
         historyLength += 1.0;
+    } else {
+        imageStore(gi_guide_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_guide_img) - 1), uvec4(0u));
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(0.0));
     }
 
     /* RENDERTARGETS: 14,15 */
     gl_FragData[0] = gi;
-    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockLuminance, inverseHitDistance);
+    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockLuminance, max(inverseHitDistance, 0.001)) * (1.0 - 2.0 * vec4(face & 1, (face >> 1) & 1, 0, face >> 2));
 }
 
 #endif

@@ -287,13 +287,14 @@ void main() {
 			vec4 gi = vec4(0.0);
 			float giBlockLuminance = 0.0;
 			float giWeight = 0.0;
+			int giPixelFace = giFace(giSurface.r > 0.5 ? vec3(0.0, 1.0, 0.0) : mat3(gbufferModelViewInverse) * giViewNormal(texCoord, viewPos));
 
 			for (int i = 0; i < 16; i++) {
 				vec2 giTap = giBase + vec2(i % 4, i / 4);
 				vec2 giCoord = (clamp(giTap, vec2(0.0), giSize - 1.0) + 0.5) / giSize;
 				vec2 tent = max(1.0 - abs(giTap - giPos) * 0.5, 0.0);
 				vec4 giTapSurface = texture2D(colortex15, giCoord);
-				float weight = tent.x * tent.y / (0.01 + abs(giTapSurface.r + viewPos.z) / -viewPos.z);
+				float weight = tent.x * tent.y / (0.01 + abs(abs(giTapSurface.r) + viewPos.z) / -viewPos.z) * (giStoredFace(giTapSurface) == giPixelFace ? 1.0 : 0.0001);
 				gi += texture2D(colortex14, giCoord) * weight;
 				giBlockLuminance += giTapSurface.b * weight;
 				giWeight += weight;

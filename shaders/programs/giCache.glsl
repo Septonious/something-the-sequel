@@ -28,6 +28,10 @@ uniform usampler3D lightGridSampler;
 
 writeonly uniform image3D gi_cache_img, gi_cache_img_copy;
 
+#ifdef LPV_FOG
+layout(r16f) uniform image3D fog_visibility_img;
+#endif
+
 uniform mat4 shadowProjection;
 uniform mat4 shadowModelView;
 
@@ -102,10 +106,52 @@ void main() {
 
 			if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) current = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, lightDirection), 0.0);
 
+			current.rgb += giPassLight;
+
+			ivec3 lampCell;
+			float lampTotal = giLampPick(origin, normal, lampCell);
+
+			if (lampTotal > 0.0) {
+				vec3 lampAxis;
+				float lampSize = giCellCone(lampCell, origin, lampAxis);
+				float pointX = giRandom();
+				float pointY = giRandom();
+				vec3 lampDirection = giConeDirection(lampAxis, lampSize, vec2(pointX, pointY));
+				vec2 lampDensity = giLampDensity(origin, normal, direction, lampDirection, lampCell) / lampTotal;
+				float cosineDensity = giCosinePdf(normal, direction);
+				float lampCosineDensity = giCosinePdf(normal, lampDirection);
+
+				if (lampDensity.x > 0.0) current *= cosineDensity / (cosineDensity + lampDensity.x);
+
+				if (lampCosineDensity > 0.0) {
+					vec4 lampSample = vec4(0.0, 0.0, 0.0, 1.0);
+
+					if (giTrace(origin, lampDirection, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) lampSample = vec4(giHitRadiance(hitCell, hitFace, origin + lampDirection * hitDistance, hitWord, lightDirection), 0.0);
+
+					lampSample.rgb += giPassLight;
+					current += lampSample * lampCosineDensity / (lampCosineDensity + lampDensity.y);
+				}
+			}
+
 			cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
 		} else {
 			cache = vec4(0.0, 0.0, 0.0, -1.0);
 		}
+
+		#ifdef LPV_FOG
+		vec3 fogLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, pos, 0).rgb : texelFetch(floodfillSampler, pos, 0).rgb;
+
+		if (maxOf(fogLight) > 0.0001) {
+			float offsetX = giRandom();
+			float offsetY = giRandom();
+			float offsetZ = giRandom();
+			ivec3 fogSlot = ivec3(mod(vec3(pos) + floor(cameraPosition), voxelVolumeSize));
+			float fogVisibility = giBlockVisibility(vec3(pos) + 0.05 + vec3(offsetX, offsetY, offsetZ) * 0.9);
+			float fogHistory = imageLoad(fog_visibility_img, fogSlot).r;
+
+			imageStore(fog_visibility_img, fogSlot, vec4(fogHistory >= 0.0 && fogHistory <= 1.0 ? mix(fogHistory, fogVisibility, 0.0625) : fogVisibility));
+		}
+		#endif
 	}
 
 	if ((frameCounter & 1) == 0) {

@@ -2,6 +2,9 @@ const int giTraceSteps = GI_RAY_STEPS;
 
 uint giSeed = 0u;
 float giHitBlockLuminance = 0.0;
+vec3 giPassLight = vec3(0.0);
+ivec3 giPassCell = ivec3(0);
+ivec3 giHitOwner = ivec3(0);
 
 float giRandom() {
 	giSeed = giSeed * 747796405u + 2891336453u;
@@ -38,6 +41,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 	hitFace = ivec3(0);
 	hitDistance = 0.0;
 	hitWord = 0u;
+	giPassLight = vec3(0.0);
 
 	for (int i = 0; i < giTraceSteps; i++) {
 		if (i == 0) {
@@ -64,7 +68,19 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 
 		if (i == 0 && !giVoxelNonFull(hitWord)) continue;
 
-		if (hitWord == 0u || giVoxelSeeThrough(hitWord) || giVoxelPlant(hitWord)) continue;
+		if (hitWord == 0u) continue;
+
+		if (giVoxelSeeThrough(hitWord) || giVoxelPlant(hitWord)) {
+			vec4 passFloodfill = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, cell, 0) : texelFetch(floodfillSampler, cell, 0);
+
+			if (passFloodfill.a > 1.5 && (passFloodfill.a < 199.5 || passFloodfill.a > 216.5)) {
+				giPassLight += pow(passFloodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * (FLOODFILL_BRIGHTNESS * 0.14 * (min(side.x, min(side.y, side.z)) - hitDistance));
+				giPassCell = cell;
+			}
+
+			continue;
+		}
+
 		if (giVoxelLeaves(hitWord) && giRandom() < GI_LEAF_PASS) continue;
 
 		if (giVoxelNonFull(hitWord)) {
@@ -98,9 +114,11 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 			for (int j = 0; j < 128 && node != 0u; j++) {
 				uvec4 quad = texelFetch(quadPoolSampler, ivec3((node - 1u) & 63u, ((node - 1u) >> 6u) & 63u, (node - 1u) >> 12u), 0);
 
-				node = quad.a;
+				node = quad.a & 524287u;
 
-				if ((quad.r >> 31u) != 0u && ((frontFaces >> ((quad.r >> 18u) & 7u)) & 1u) == 0u) continue;
+				uvec2 cutout = uvec2(quad.b, (quad.g >> 18u) | (((quad.r >> 21u) & 1023u) << 14u) | ((quad.a >> 19u) << 24u));
+
+				if ((quad.r >> 31u) != 0u && cutout == uvec2(0xFFFFFFFFu) && ((frontFaces >> ((quad.r >> 18u) & 7u)) & 1u) == 0u) continue;
 
 				vec3 corner = vec3(quad.r & 63u, (quad.r >> 6u) & 63u, (quad.r >> 12u) & 63u);
 				vec3 edgeA = vec3(quad.g & 63u, (quad.g >> 6u) & 63u, (quad.g >> 12u) & 63u) - corner;
@@ -115,8 +133,17 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 
 					if (boxDistance > min(leave.x, min(leave.y, leave.z)) || boxDistance < hitDistance * 32.0 - 0.01 || boxDistance >= nearest) continue;
 
+					if (cutout != uvec2(0xFFFFFFFFu)) {
+						ivec2 plane = ivec2((face >> 1u) == 0u ? 1 : 0, (face >> 1u) == 2u ? 1 : 2);
+						vec3 boxPoint = (local + direction * boxDistance - corner) / max(edgeA, vec3(0.001));
+						ivec2 cutoutCell = clamp(ivec2(vec2(boxPoint[plane.x], boxPoint[plane.y]) * 8.0), ivec2(0), ivec2(7));
+						int cutoutBit = cutoutCell.x + cutoutCell.y * 8;
+
+						if ((((cutoutBit < 32 ? cutout.x : cutout.y) >> uint(cutoutBit & 31)) & 1u) == 0u) continue;
+					}
+
 					nearest = boxDistance;
-					nearestNormal = vec3(equal(ivec3(face >> 1u), ivec3(0, 1, 2))) * (float(face & 1u) * 2.0 - 1.0);
+					nearestNormal = vec3(equal(ivec3(face >> 1u), ivec3(0, 1, 2))) * (float(face & 1u) * 2.0 - 1.0) * (((frontFaces >> face) & 1u) == 0u ? -1.0 : 1.0);
 				} else {
 					vec3 edgeB = vec3(quad.b & 63u, (quad.b >> 6u) & 63u, (quad.b >> 12u) & 63u) - corner;
 					vec3 normal = cross(edgeA, edgeB);
@@ -144,11 +171,13 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 			hitDistance = nearest / 32.0;
 			hitFace = ivec3(sign(nearestNormal) * step(max(dominant.yzx, dominant.zxy), dominant));
 			hitCell = ivec3(floor(origin + direction * hitDistance + normalize(nearestNormal) * 0.01)) - hitFace;
+			giHitOwner = cell;
 
 			return true;
 		}
 
 		hitCell = cell;
+		giHitOwner = cell;
 
 		return true;
 	}
@@ -156,7 +185,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 	return false;
 }
 
-float giBlockVisibility(vec3 origin, vec3 normal) {
+float giBlockVisibility(vec3 origin) {
 	ivec3 gridCell = ivec3(origin) >> 4;
 	ivec3 gridSize = ivec3(voxelVolumeSize) >> 4;
 	vec3 lightPos = vec3(0.0);
@@ -175,7 +204,7 @@ float giBlockVisibility(vec3 origin, vec3 normal) {
 			vec3 candidate = vec3(data & 1023u, (data >> 10u) & 1023u, (data >> 20u) & 1023u) + 0.5;
 			vec3 toLight = candidate - origin;
 			float lightDistance = length(toLight);
-			float weight = float(count) / float(stored) * max(dot(normal, toLight), 0.0) * clamp(1.0 - lightDistance / 16.0, 0.0, 1.0) / (lightDistance * lightDistance * lightDistance + 0.5);
+			float weight = float(count) / float(stored) * clamp(1.0 - lightDistance / 16.0, 0.0, 1.0) / (lightDistance * lightDistance + 0.5);
 
 			weightSum += weight;
 
@@ -185,12 +214,127 @@ float giBlockVisibility(vec3 origin, vec3 normal) {
 
 	if (weightSum <= 0.0 || ivec3(lightPos) == ivec3(floor(origin))) return 1.0;
 
-	vec3 target = lightPos + vec3(giRandom(), giRandom(), giRandom()) - 0.5;
 	ivec3 hitCell, hitFace;
 	float hitDistance;
 	uint hitWord;
 
-	return giTrace(origin, normalize(target - origin), ivec3(lightPos), hitCell, hitFace, hitDistance, hitWord) ? 0.0 : 1.0;
+	return giTrace(origin, normalize(lightPos - origin), ivec3(lightPos), hitCell, hitFace, hitDistance, hitWord) ? 0.0 : 1.0;
+}
+
+float giCellSphere(ivec3 cell, out vec3 centre) {
+	centre = vec3(cell) + 0.5;
+
+	if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return 0.765625;
+
+	uint bounds = texelFetch(voxelBoxSampler, ivec3(cell.x * 2 + 1, cell.yz), 0).r;
+
+	if (bounds == 0u) return 0.765625;
+
+	uvec3 boundBits = uvec3(bounds & 511u, (bounds >> 9u) & 511u, bounds >> 18u);
+	vec3 low = vec3(findLSB(boundBits)) * 0.125;
+	vec3 high = vec3(findMSB(boundBits)) * 0.125;
+
+	centre = vec3(cell) + (low + high) * 0.5;
+
+	return dot(high - low, high - low) * 0.255;
+}
+
+float giCellCone(ivec3 cell, vec3 origin, out vec3 axis) {
+	vec3 centre;
+	float radiusSquared = giCellSphere(cell, centre);
+	vec3 toCentre = centre - origin;
+	float sineSquared = min(radiusSquared / dot(toCentre, toCentre), 1.0);
+
+	axis = normalize(toCentre);
+
+	return sineSquared / (1.0 + sqrt(1.0 - sineSquared));
+}
+
+float giCosinePdf(vec3 normal, vec3 direction) {
+	float facing = max(dot(normal, direction), 0.0);
+
+	return facing * facing > 0.001999 ? (2.0 * facing * facing - 0.001999) / (6.27690212 * sqrt(facing * facing - 0.001999)) : 0.0;
+}
+
+vec3 giConeDirection(vec3 axis, float size, vec2 point) {
+	vec3 tangent = normalize(cross(axis, abs(axis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+	float cosine = 1.0 - point.x * size;
+	float angle = point.y * 6.28318530718;
+
+	return axis * cosine + (tangent * cos(angle) + cross(axis, tangent) * sin(angle)) * sqrt(max(1.0 - cosine * cosine, 0.0));
+}
+
+float giLampWeight(vec3 origin, vec3 normal, uint data, out vec3 lampCentre) {
+	lampCentre = vec3(data & 1023u, (data >> 10u) & 1023u, (data >> 20u) & 1023u) + 0.5;
+
+	vec3 toLamp = lampCentre - origin;
+	float lampDistance = length(toLamp);
+	float level = float(data >> 30u);
+
+	if (lampDistance < 1.2375 || dot(normal, toLamp) + 0.875 <= 0.0) return 0.0;
+
+	return level * level * clamp(1.0 - lampDistance / 16.0, 0.0, 1.0) / (lampDistance * lampDistance + 0.5);
+}
+
+float giLampPick(vec3 origin, vec3 normal, out ivec3 lampCell) {
+	ivec3 gridCell = ivec3(origin) >> 4;
+	ivec3 gridSize = ivec3(voxelVolumeSize) >> 4;
+	float total = 0.0;
+
+	lampCell = ivec3(-1);
+
+	for (int i = 0; i < 27; i++) {
+		ivec3 cell = gridCell + ivec3(i % 3, (i / 3) % 3, i / 9) - 1;
+
+		if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, gridSize)) || distance(clamp(origin, vec3(cell) * 16.0, vec3(cell) * 16.0 + 16.0), origin) >= 16.0) continue;
+
+		uint stored = min(texelFetch(lightGridSampler, ivec3(cell.x * 16, cell.yz), 0).r, 15u);
+
+		for (uint slot = 0u; slot < stored; slot++) {
+			vec3 lampCentre;
+			float weight = giLampWeight(origin, normal, texelFetch(lightGridSampler, ivec3(cell.x * 16 + 1 + int(slot), cell.yz), 0).r, lampCentre);
+
+			total += weight;
+
+			if (weight > 0.0 && giRandom() * total < weight) lampCell = ivec3(lampCentre);
+		}
+	}
+
+	return total;
+}
+
+vec2 giLampDensity(vec3 origin, vec3 normal, vec3 directionA, vec3 directionB, ivec3 lampCell) {
+	ivec3 gridCell = ivec3(origin) >> 4;
+	ivec3 gridSize = ivec3(voxelVolumeSize) >> 4;
+	vec2 density = vec2(0.0);
+
+	for (int i = 0; i < 27; i++) {
+		ivec3 cell = gridCell + ivec3(i % 3, (i / 3) % 3, i / 9) - 1;
+
+		if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, gridSize)) || distance(clamp(origin, vec3(cell) * 16.0, vec3(cell) * 16.0 + 16.0), origin) >= 16.0) continue;
+
+		uint stored = min(texelFetch(lightGridSampler, ivec3(cell.x * 16, cell.yz), 0).r, 15u);
+
+		for (uint slot = 0u; slot < stored; slot++) {
+			vec3 lampCentre;
+			float weight = giLampWeight(origin, normal, texelFetch(lightGridSampler, ivec3(cell.x * 16 + 1 + int(slot), cell.yz), 0).r, lampCentre);
+
+			if (weight <= 0.0) continue;
+
+			vec3 toLamp = lampCentre - origin;
+			float reach = dot(toLamp, toLamp) > 1.5625 ? sqrt(dot(toLamp, toLamp) - 1.5625) : -2.0;
+			bool chosen = ivec3(lampCentre) == lampCell;
+
+			if (!chosen && dot(directionA, toLamp) < reach && dot(directionB, toLamp) < reach) continue;
+
+			vec3 axis;
+			float size = giCellCone(ivec3(lampCentre), origin, axis);
+
+			density += weight / (6.28318530718 * size) * vec2(dot(directionA, axis) >= 1.0 - size, chosen || dot(directionB, axis) >= 1.0 - size);
+		}
+	}
+
+	return density;
 }
 
 vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3 lightDirection) {
@@ -208,9 +352,8 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 	float vanillaDiffuse = (0.25 * faceNormal.y + 0.75) + (0.667 - abs(faceNormal.x)) * (1.0 - abs(faceNormal.y)) * 0.15;
 	      vanillaDiffuse *= vanillaDiffuse;
 
-	vec3 airPos = (vec3(hitCell + hitFace) + 0.5) / voxelVolumeSize;
-	vec3 blockLight = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, airPos).rgb : texture3D(floodfillSampler, airPos).rgb;
-	     blockLight = pow(blockLight, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS;
+	vec4 floodfill = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, giHitOwner, 0) : texelFetch(floodfillSampler, giHitOwner, 0);
+	vec3 blockLight = floodfill.a > 1.5 && (floodfill.a < 199.5 || floodfill.a > 216.5) ? pow(floodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS * (giVoxelNonFull(hitWord) ? 5.0 : 1.0) : vec3(0.0);
 
 	vec4 cached = giCacheFetch(hitCell + hitFace);
 	vec3 ambient = cached.a < 0.0 ? vec3(0.0) : ambientCol * cached.a * clamp(skyLight * 8.0, 0.0, 1.0) + cached.rgb * GI_MULTI_BOUNCE;

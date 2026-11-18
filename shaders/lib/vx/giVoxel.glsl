@@ -66,10 +66,23 @@ void updateVoxelGi(int blockId, float skyLight) {
 		uint keyB = giHash(cellIndex + giHash(quadId ^ 0x85ebca6bu)) | 1u;
 		uint slot = keyA & 262143u;
 		uvec3 point = uvec3(clamp(floor((0.5 - at_midBlock / 64.0) * 32.0 + 0.5), 0.0, 32.0));
-		uint entry = point.x | (point.y << 6u) | (point.z << 12u) | ((quadVertex == 0 ? cellIndex & 16383u : (quadVertex == 1 ? cellIndex >> 14u : 0u)) << 18u);
+		uint uvCorner = uint(gl_MultiTexCoord0.x > mc_midTexCoord.x) | (uint(gl_MultiTexCoord0.y > mc_midTexCoord.y) << 1u);
+		uint entry = point.x | (point.y << 6u) | (point.z << 12u) | ((quadVertex == 0 ? cellIndex & 16383u : (quadVertex == 1 ? (cellIndex >> 14u) | (uvCorner << 9u) : uvCorner)) << 18u);
+		uvec2 alphaMask = uvec2(0u);
+
+		if (quadVertex == 0) {
+			vec2 uvLow = min(gl_MultiTexCoord0.xy, mc_midTexCoord.xy * 2.0 - gl_MultiTexCoord0.xy);
+			vec2 uvSize = abs(mc_midTexCoord.xy - gl_MultiTexCoord0.xy) * 2.0;
+
+			for (int i = 0; i < 64; i++) {
+				uint texelBit = uint(texture2DLod(tex, uvLow + uvSize * (vec2(i % 8, i / 8) + 0.25) / 8.0, 0.0).a >= 0.1) << uint(i & 31);
+
+				if (i < 32) alphaMask.x |= texelBit; else alphaMask.y |= texelBit;
+			}
+		}
 
 		for (int i = 0; i < 16; i++) {
-			ivec3 base = ivec3(int(slot & 127u) * 5, int((slot >> 7u) & 63u), int(slot >> 13u));
+			ivec3 base = ivec3(int(slot & 127u) * 8, int((slot >> 7u) & 63u), int(slot >> 13u));
 			uint owner = imageAtomicCompSwap(quad_hash_img, base, 0u, keyA);
 
 			if (owner == 0u || owner == keyA) {
@@ -77,6 +90,12 @@ void updateVoxelGi(int blockId, float skyLight) {
 
 				if (owner == 0u || owner == keyB) {
 					imageStore(quad_hash_img, base + ivec3(2 + min(quadVertex, 2), 0, 0), uvec4(entry));
+
+					if (quadVertex == 0) {
+						imageStore(quad_hash_img, base + ivec3(5, 0, 0), uvec4(alphaMask.x));
+						imageStore(quad_hash_img, base + ivec3(6, 0, 0), uvec4(alphaMask.y));
+						imageStore(quad_hash_img, base + ivec3(7, 0, 0), uvec4(uvCorner));
+					}
 
 					break;
 				}
