@@ -499,6 +499,11 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 #undef GI
 #endif
 
+#ifdef GI
+#undef AO_TYPE
+#define AO_TYPE -1
+#endif
+
 #ifdef SPECULAR_HIGHLIGHTS
 #endif
 

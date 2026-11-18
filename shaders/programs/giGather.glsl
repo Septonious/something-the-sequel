@@ -13,7 +13,9 @@ uniform float frameTime;
 uniform vec3 cameraPosition, previousCameraPosition;
 
 uniform sampler2D depthtex0;
+uniform sampler2D colortex0;
 uniform sampler2D colortex11;
+uniform sampler2D colortex13;
 uniform sampler2D colortex14;
 uniform sampler2D colortex15;
 uniform sampler2D shadowtex1;
@@ -96,6 +98,47 @@ vec4 giCachePrior(vec3 position) {
     }
 
     return weightSum > 0.01 ? total / weightSum : vec4(0.0, 0.0, 0.0, -1.0);
+}
+
+vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
+    vec2 viewScale = vec2(gbufferProjectionInverse[0].x, gbufferProjectionInverse[1].y);
+    float reach = min(0.025 - viewPos.z * 0.0005, -viewPos.z * 0.015);
+    float jitter = giRandom();
+
+    for (int i = 0; i < 6; i++) {
+        float travel = (float(i) + jitter) * (float(i) + jitter) * reach;
+        vec3 rayPos = viewPos + viewDirection * travel;
+
+        if (rayPos.z > -0.05) break;
+
+        vec2 rayCoord = rayPos.xy / (-rayPos.z * viewScale) * 0.5 + 0.5;
+
+        if (clamp(rayCoord, 0.0, 1.0) != rayCoord) break;
+
+        float sceneDepth = texture2D(depthtex0, rayCoord).r;
+
+        if (sceneDepth < 0.56 || sceneDepth >= 1.0) continue;
+
+        vec3 scenePos = ToView(vec3(rayCoord, sceneDepth));
+        vec3 toScene = scenePos - viewPos;
+        float behind = scenePos.z - rayPos.z;
+
+        if (dot(toScene, viewNormal) < 0.005 - viewPos.z * 0.002 || (dot(normalize(toScene), viewDirection) < 0.99 && (behind < 0.0 || behind > reach * 13.0))) continue;
+
+        ivec3 sceneCell = ivec3(floor(worldToVoxel(ToWorld(scenePos + viewDirection * 0.02))));
+
+        if (all(greaterThanEqual(sceneCell, ivec3(0))) && all(lessThan(sceneCell, ivec3(voxelVolumeSize)))) {
+            vec4 sceneLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, sceneCell, 0) : texelFetch(floodfillSampler, sceneCell, 0);
+
+            if (sceneLight.a > 1.5 && (sceneLight.a < 199.5 || sceneLight.a > 216.5) && maxOf(sceneLight.rgb) > 0.0) break;
+        }
+
+        vec3 receptor = texture2D(colortex13, rayCoord).rgb;
+
+        return vec4(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) + receptor * receptor * max(texture2D(colortex14, rayCoord).rgb, vec3(0.0)) * GI_MULTI_BOUNCE, length(toScene));
+    }
+
+    return vec4(0.0, 0.0, 0.0, -1.0);
 }
 
 float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 high) {
@@ -338,12 +381,18 @@ void main() {
             sampleWeight = cosinePdf > 0.0 ? cosinePdf / mix(cosinePdf, boxDensity / boxTotal, guideProbability) : 0.0;
         }
 
-        ivec3 hitCell, hitFace;
+        ivec3 hitCell, hitFace = ivec3(0);
         float hitDistance;
         uint hitWord;
-        bool hit = sampleWeight > 0.0 && giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord);
+        vec4 screenHit = sampleWeight > 0.0 ? giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction) : vec4(0.0, 0.0, 0.0, -1.0);
+        bool hit = screenHit.a >= 0.0;
 
         if (hit) {
+            gi = vec4(screenHit.rgb, 0.0);
+            hitDistance = screenHit.a;
+            inverseHitDistance = 1.0 / (hitDistance + 0.25);
+        } else if (sampleWeight > 0.0 && giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
+            hit = true;
             gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec), 0.0);
             blockLuminance = giHitBlockLuminance;
             inverseHitDistance = 1.0 / (hitDistance + 0.25);
