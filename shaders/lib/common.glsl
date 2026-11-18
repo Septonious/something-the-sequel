@@ -161,7 +161,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define GI_STRENGTH 2.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 #define GI_COLOR 4.0 //[1.0 1.5 2.0 3.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0]
 #define GI_MULTI_BOUNCE 0.70 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
-#define GI_SKY_SHADOW 0.60 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
+#define GI_SKY_SHADOW 1.00 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
 #define GI_BLOCK_SHADOWS
 #define GI_BLOCK_SHADOW_STRENGTH 1.00 //[0.25 0.50 0.75 1.00]
 #define GI_RESOLUTION 2 //[1 2 4]

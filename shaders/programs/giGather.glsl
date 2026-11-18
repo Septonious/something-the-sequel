@@ -14,6 +14,7 @@ uniform vec3 cameraPosition, previousCameraPosition;
 
 uniform sampler2D depthtex0;
 uniform sampler2D colortex0;
+uniform sampler2D colortex10;
 uniform sampler2D colortex11;
 uniform sampler2D colortex13;
 uniform sampler2D colortex14;
@@ -80,26 +81,6 @@ uint giGuidePack(ivec3 cell, float weight, float dither) {
     return uint(cell.x) | (uint(cell.y) << 8u) | (uint(cell.z) << 15u) | (uint(clamp(floor(log2(weight) * 8.0 + 256.0 + dither), 1.0, 511.0)) << 23u);
 }
 
-vec4 giCachePrior(vec3 position) {
-    vec3 base = floor(position - 0.5);
-    vec3 blend = position - 0.5 - base;
-    vec4 total = vec4(0.0);
-    float weightSum = 0.0;
-
-    for (int i = 0; i < 8; i++) {
-        vec3 corner = vec3(i & 1, (i >> 1) & 1, i >> 2);
-        vec4 value = giCacheFetch(ivec3(base + corner));
-        vec3 side = mix(1.0 - blend, blend, corner);
-
-        if (value.a < 0.0) continue;
-
-        total += value * (side.x * side.y * side.z);
-        weightSum += side.x * side.y * side.z;
-    }
-
-    return weightSum > 0.01 ? total / weightSum : vec4(0.0, 0.0, 0.0, -1.0);
-}
-
 vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
     vec2 viewScale = vec2(gbufferProjectionInverse[0].x, gbufferProjectionInverse[1].y);
     float reach = min(0.025 - viewPos.z * 0.0005, -viewPos.z * 0.015);
@@ -133,12 +114,30 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
             if (sceneLight.a > 1.5 && (sceneLight.a < 199.5 || sceneLight.a > 216.5) && maxOf(sceneLight.rgb) > 0.0) break;
         }
 
-        vec3 receptor = texture2D(colortex13, rayCoord).rgb;
+        vec4 previousView = gbufferPreviousModelView * vec4(ToWorld(scenePos) + cameraPosition - previousCameraPosition, 1.0);
+        vec4 previousClip = gbufferPreviousProjection * previousView;
+        vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5;
+        ivec2 previousTexel = min(ivec2(previousCoord * vec2(textureSize(colortex14, 0))), textureSize(colortex14, 0) - 1);
+        vec3 sceneSurface = texture2D(colortex11, rayCoord).rgb;
+        vec3 radiance = max(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) - texture2D(colortex10, rayCoord).rgb / (1.0 - sceneSurface.r * 0.35), vec3(0.0));
 
-        return vec4(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) + receptor * receptor * max(texture2D(colortex14, rayCoord).rgb, vec3(0.0)) * GI_MULTI_BOUNCE, length(toScene));
+        if (clamp(previousCoord, 0.0, 1.0) == previousCoord && abs(abs(texelFetch(colortex15, previousTexel, 0).r) + previousView.z) < 0.1 - previousView.z * 0.05) {
+            vec3 receptor = texture2D(colortex13, rayCoord).rgb;
+            vec4 previousGi = max(texelFetch(colortex14, previousTexel, 0), vec4(0.0));
+
+            radiance += receptor * receptor * (previousGi.rgb * GI_MULTI_BOUNCE + ambientCol * (previousGi.a * clamp(sceneSurface.g * 8.0, 0.0, 1.0) * (1.0 - sceneSurface.b)));
+        }
+
+        return vec4(radiance, length(toScene));
     }
 
     return vec4(0.0, 0.0, 0.0, -1.0);
+}
+
+vec4 giSceneRadiance(vec3 viewPos, vec3 worldNormal, vec3 origin, vec3 direction) {
+    vec4 screenHit = giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction);
+
+    return screenHit.a >= 0.0 ? vec4(screenHit.rgb, 0.0) : giTraceRadiance(origin, direction, mat3(gbufferModelViewInverse) * lightVec);
 }
 
 float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 high) {
@@ -209,8 +208,9 @@ void main() {
 
     if (z0 > 0.56 && z0 < 1.0 && isInsideVoxelVolume(voxelPos)) {
         vec3 worldNormal = mat3(gbufferModelViewInverse) * giViewNormal(coord, viewPos);
+        bool foliage = texture2D(colortex11, coord).r > 0.5;
 
-        if (texture2D(colortex11, coord).r > 0.5 || any(isnan(worldNormal))) worldNormal = vec3(0.0, 1.0, 0.0);
+        if (foliage || any(isnan(worldNormal))) worldNormal = vec3(0.0, 1.0, 0.0);
 
         giSeed = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u;
         giRandom();
@@ -228,6 +228,8 @@ void main() {
         vec4 previousView = gbufferPreviousModelView * vec4(worldPos + cameraPosition - previousCameraPosition, 1.0);
         vec4 previousClip = gbufferPreviousProjection * previousView;
         vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5 + texCoord - coord;
+        vec2 previousScale = 1.0 / vec2(gbufferPreviousProjection[0].x, gbufferPreviousProjection[1].y);
+        vec3 previousNormal = foliage ? vec3(0.0, 0.0, 1.0) : mat3(gbufferPreviousModelView) * worldNormal;
         vec4 history = vec4(0.0);
         vec4 historyGi = vec4(0.0);
         vec4 historyFar = vec4(0.0);
@@ -250,8 +252,10 @@ void main() {
                 vec4 tapGi = texelFetch(colortex14, tap, 0);
                 vec2 blend = mix(1.0 - historyBlend, historyBlend, vec2(offset));
                 float weight = i < 4 ? blend.x * blend.y : 1.0;
+                vec2 tapCoord = (vec2(tap) + 0.5) / vec2(historySize) - texCoord + coord;
+                vec3 tapPos = vec3((tapCoord * 2.0 - 1.0) * previousScale * abs(tapSurface.r), -abs(tapSurface.r));
 
-                if (giStoredFace(tapSurface) != face || abs(abs(tapSurface.r) + previousView.z) >= 0.1 - previousView.z * 0.05 || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
+                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= 0.005 - previousView.z * 0.002 || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
 
                 vec4 tapFar = imageLoad(gi_far_img, min(tap, imageSize(gi_far_img) - 1));
 
@@ -264,18 +268,26 @@ void main() {
         }
 
         bool reprojected = historyWeight > 0.0;
-        bool seeded = false;
 
         if (reprojected) {
             history /= historyWeight;
             historyGi /= historyWeight;
             historyFar /= historyWeight;
         } else {
-            historyGi = giCachePrior(voxelPos + worldNormal * 0.5);
-            seeded = historyGi.a >= 0.0;
+            for (int i = 0; i < 2; i++) {
+                vec3 seedDirection, seedLampDirection;
+                vec2 seedWeights = giLampedDirections(origin, worldNormal, seedDirection, seedLampDirection);
 
-            if (seeded) history = vec4(0.0, 16.0, 0.0, 1.0 / 32.25);
-            else historyGi = vec4(0.0);
+                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection) * (seedWeights.x * 0.5);
+
+                if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection) * (seedWeights.y * 0.5);
+            }
+
+            if (any(isnan(historyGi)) || any(isinf(historyGi))) historyGi = vec4(0.0, 0.0, 0.0, 1.0);
+
+            history = vec4(0.0, 4.0, 0.0, 1.0 / 32.25);
+            giPassLight = vec3(0.0);
+            giHitBlockLuminance = 0.0;
         }
 
         ivec2 guideSize = imageSize(gi_guide_img);
@@ -287,7 +299,7 @@ void main() {
         ivec2 neighbourPixel = clamp(guidePixel + ivec2((vec2(offsetX, offsetY) - 0.5) * (history.g > 24.0 ? 24.0 : 96.0)), ivec2(0), guideSize - 1);
         uvec4 neighbour = imageLoad(gi_guide_img, neighbourPixel);
 
-        if (seeded) {
+        if (!reprojected) {
             vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, imageSize(gi_far_img) - 1));
 
             if (nearFar.a > 8.0 && !any(isnan(nearFar))) historyFar.rgb = historyGi.rgb * clamp(dot(nearFar.rgb, luminance) / max(dot(texelFetch(colortex14, min(neighbourPixel, textureSize(colortex14, 0) - 1), 0).rgb, luminance), 0.000001), 0.0, 0.5);
@@ -448,13 +460,11 @@ void main() {
 
         float guideSample = insideBox ? radiance * sampleWeight : 0.0;
 
-        if (reprojected || seeded) {
-            historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
-            gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
-            blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
-            inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
-            guideSample = mix(guideLuminance, guideSample, 1.0 / (historyLength + 1.0));
-        }
+        historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
+        gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
+        blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
+        inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
+        guideSample = mix(guideLuminance, guideSample, 1.0 / (historyLength + 1.0));
 
         uvec4 guideState = uvec4(0u, 0u, 0u, floatBitsToUint(guideSample));
 

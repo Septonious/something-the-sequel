@@ -44,10 +44,11 @@ void main() {
         float blockLuminance = surface.b;
         float inverseHitDistance = abs(surface.a);
         float weightSum = 1.0;
+        int taps = abs(surface.g) < 24.5 ? 24 : 8;
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < taps; i++) {
             float angle = rotation + float(i) * 2.39996323;
-            vec3 tapView = viewPos + (tangent * cos(angle) + bitangent * sin(angle)) * (sqrt((float(i) + 0.5) / 8.0) * radius);
+            vec3 tapView = viewPos + (tangent * cos(angle) + bitangent * sin(angle)) * (sqrt((float(i) + 0.5) / float(taps)) * radius);
             vec2 tapCoord = (floor((tapView.xy / (-tapView.z * viewScale) * 0.5 + 0.5 + texCoord - coord) * giSize) + 0.5) / giSize;
             vec4 tapSurface = texture2D(colortex15, tapCoord);
             vec4 tapGi = texture2D(colortex14, tapCoord);

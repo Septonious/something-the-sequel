@@ -317,7 +317,7 @@ void main() {
 			#elif GI_DEBUG == 10
 			color = vec3(giBlockVisibility);
 			#else
-			color = pow(max(pow(color, vec3(2.2)) + max(giReceptor * receptorWeight * giDelta, 0.0) + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance), vec3(0.0)), vec3(1.0 / 2.2));
+			color = pow(max(pow(color, vec3(2.2)) + giReceptor * receptorWeight * giDelta + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance), vec3(0.0)), vec3(1.0 / 2.2));
 			#endif
 		}
 		#endif

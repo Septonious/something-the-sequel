@@ -364,3 +364,39 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 
 	return surface * lighting;
 }
+
+vec4 giTraceRadiance(vec3 origin, vec3 direction, vec3 lightDirection) {
+	vec4 radiance = vec4(0.0, 0.0, 0.0, 1.0);
+	ivec3 hitCell, hitFace;
+	float hitDistance;
+	uint hitWord;
+
+	if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) radiance = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, lightDirection), 0.0);
+
+	radiance.rgb += giPassLight;
+
+	return radiance;
+}
+
+vec2 giLampedDirections(vec3 origin, vec3 normal, out vec3 direction, out vec3 lampDirection) {
+	ivec3 lampCell;
+	float lampTotal = giLampPick(origin, normal, lampCell);
+
+	direction = giCosineDirection(normal);
+	lampDirection = direction;
+
+	if (lampTotal <= 0.0) return vec2(1.0, 0.0);
+
+	vec3 lampAxis;
+	float lampSize = giCellCone(lampCell, origin, lampAxis);
+	float pointX = giRandom();
+	float pointY = giRandom();
+
+	lampDirection = giConeDirection(lampAxis, lampSize, vec2(pointX, pointY));
+
+	vec2 lampDensity = giLampDensity(origin, normal, direction, lampDirection, lampCell) / lampTotal;
+	float cosineDensity = giCosinePdf(normal, direction);
+	float lampCosineDensity = giCosinePdf(normal, lampDirection);
+
+	return vec2(lampDensity.x > 0.0 ? cosineDensity / (cosineDensity + lampDensity.x) : 1.0, lampCosineDensity > 0.0 ? lampCosineDensity / (lampCosineDensity + lampDensity.y) : 0.0);
+}
