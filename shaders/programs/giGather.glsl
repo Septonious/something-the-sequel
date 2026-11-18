@@ -328,7 +328,7 @@ void main() {
             boxTotal += boxWeights[i];
         }
 
-        if (boxTotal > 0.0) guideProbability = clamp(guideLuminance / max(dot(historyGi.rgb, luminance) * GI_STRENGTH + historyGi.a * dot(ambientCol, luminance), 0.000001), reprojected && history.g > 32.0 ? 0.015625 : 0.125, 0.5);
+        if (boxTotal > 0.0) guideProbability = clamp(guideLuminance / max(dot(historyGi.rgb, luminance) * GI_STRENGTH + historyGi.a * dot(ambientCol, luminance), 0.000001), reprojected && history.g > 32.0 ? 0.015625 : 0.5, 0.5);
 
         vec3 direction = giCosineDirection(worldNormal, point);
         float sampleWeight = 1.0;
@@ -434,7 +434,7 @@ void main() {
 
         float farLength = min(historyFar.a, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75) * 8.0);
         bool stray = hit && giHitBlockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
-        vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 241.0));
+        vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 31.0));
 
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(farLight, farLength + 1.0));
 
