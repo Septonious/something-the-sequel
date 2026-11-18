@@ -9,12 +9,19 @@ float giRandom() {
 	return float((word >> 22u) ^ word) / 4294967296.0;
 }
 
-vec3 giCosineDirection(vec3 normal) {
-	float height = giRandom() * 2.0 - 1.0;
-	float angle = giRandom() * 6.28318530718;
+vec3 giCosineDirection(vec3 normal, vec2 point) {
+	float height = point.x * 2.0 - 1.0;
+	float angle = point.y * 6.28318530718;
 	float radius = sqrt(max(1.0 - height * height, 0.0));
 
 	return normalize(normal + vec3(radius * cos(angle), radius * sin(angle), height) * 0.999);
+}
+
+vec3 giCosineDirection(vec3 normal) {
+	float pointX = giRandom();
+	float pointY = giRandom();
+
+	return giCosineDirection(normal, vec2(pointX, pointY));
 }
 
 bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, out ivec3 hitFace, out float hitDistance, out uint hitWord) {

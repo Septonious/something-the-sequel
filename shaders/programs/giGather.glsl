@@ -70,6 +70,7 @@ void main() {
     vec3 voxelPos = worldToVoxel(worldPos);
     vec4 gi = vec4(0.0, 0.0, 0.0, 1.0);
     float blockVisibility = 1.0;
+    float inverseHitDistance = 1.0 / 32.25;
     float historyLength = 0.0;
 
     #if GI_DEBUG == 12
@@ -93,17 +94,25 @@ void main() {
 
         if (texture2D(colortex11, coord).r > 0.5 || any(isnan(worldNormal))) worldNormal = vec3(0.0, 1.0, 0.0);
 
+        giSeed = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u;
+        giRandom();
+
+        float pointX = giRandom();
+        float pointY = giRandom();
+        vec2 point = fract(vec2(pointX, pointY) + vec2(uvec2(frameCounter) * uvec2(3242174889u, 2447445414u)) / 4294967296.0);
+
         giSeed = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u + uint(frameCounter) * 26699u;
         giRandom();
 
         vec3 origin = voxelPos + worldNormal * 0.05;
-        vec3 direction = giCosineDirection(worldNormal);
+        vec3 direction = giCosineDirection(worldNormal, point);
         ivec3 hitCell, hitFace;
         float hitDistance;
         uint hitWord;
 
         if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
             gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec), 0.0);
+            inverseHitDistance = 1.0 / (hitDistance + 0.25);
         }
 
         #ifdef GI_BLOCK_SHADOWS
@@ -127,6 +136,7 @@ void main() {
                 historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
                 gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
                 blockVisibility = mix(clamp(history.b, 0.0, 1.0), blockVisibility, 1.0 / (historyLength + 1.0));
+                inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
             }
         }
 
@@ -141,7 +151,7 @@ void main() {
 
     /* RENDERTARGETS: 14,15 */
     gl_FragData[0] = gi;
-    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockVisibility, 1.0);
+    gl_FragData[1] = vec4(-viewPos.z, historyLength, blockVisibility, inverseHitDistance);
 }
 
 #endif
