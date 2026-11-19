@@ -35,19 +35,19 @@ vec3 getWavingBlocks(vec3 worldPos, float istopv, float skyLightMap) {
 
         #ifdef WAVING_PLANTS
         if (istopv > 0.9 && (mc_Entity.x == 10304 || (mc_Entity.x >= 10035 && mc_Entity.x <= 10040))) { // Grass and flowers
-            wave += calculateMovement(worldPos, 0.35, 1.0, vec2(0.125, 0.03));
+            wave += calculateMovement(pos, 0.35, 1.0, vec2(0.125, 0.03));
         } else if ((mc_Entity.x == 10305 || mc_Entity.x == 10307 || mc_Entity.x == 10309 || mc_Entity.x == 10311 || mc_Entity.x == 10318) && (istopv > 0.9 || fract(pos.y + 0.005) > 0.01) || mc_Entity.x == 10306 || mc_Entity.x == 10308 || mc_Entity.x == 10310 || mc_Entity.x == 10312 || mc_Entity.x == 10319) { // Large Flowers (real big)
-            wave += calculateMovement(worldPos, 0.35, 0.95, vec2(0.15, 0.06));
+            wave += calculateMovement(pos, 0.35, 0.95, vec2(0.15, 0.06));
         } else if (mc_Entity.x == 10315) { // Vines
-            wave += calculateMovement(worldPos, 0.35, 1.25, vec2(0.06, 0.06)); 
+            wave += calculateMovement(pos, 0.35, 1.25, vec2(0.06, 0.06)); 
         }
         #endif
 
         #ifdef WAVING_LEAVES
-        if (mc_Entity.x == 10314) wave += calculateMovement(worldPos, 0.25, 1.0, vec2(0.04, 0.04));
+        if (mc_Entity.x == 10314) wave += calculateMovement(pos, 0.25, 1.0, vec2(0.04, 0.04));
         #endif
 
-        return worldPos + wave * skyLightMap;
+        return worldPos + wave * skyLightMap * (1.0 + rainStrength);
     }
 
     return worldPos;

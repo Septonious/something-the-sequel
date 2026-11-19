@@ -76,8 +76,6 @@ flat out int mat;
 #ifdef VX_SUPPORT
 uniform int renderStage;
 
-uniform vec3 cameraPosition;
-
 writeonly uniform uimage3D voxel_img;
 
 #if AO_TYPE == 0
@@ -101,6 +99,15 @@ layout(r32ui) uniform uimage3D voxel_gi_img;
 layout(r32ui) uniform uimage3D quad_hash_img;
 #endif
 
+#if defined WAVING_LEAVES || defined WAVING_PLANTS
+uniform float frameTimeCounter, rainStrength;
+
+uniform mat4 shadowProjection;
+uniform mat4 shadowModelView;
+#endif
+
+uniform vec3 cameraPosition;
+
 uniform mat4 shadowProjectionInverse;
 uniform mat4 shadowModelViewInverse;
 
@@ -121,6 +128,10 @@ attribute vec4 at_tangent;
 
 #ifdef GI
 #include "/lib/vx/giVoxel.glsl"
+#endif
+
+#if defined WAVING_LEAVES || defined WAVING_PLANTS
+#include "/lib/pbr/waving.glsl"
 #endif
 
 // Main //
@@ -151,6 +162,12 @@ void main() {
 	gl_Position = ftransform();
 
 	worldPos = (shadowModelViewInverse * (shadowProjectionInverse * gl_Position)).xyz;
+
+	#if defined WAVING_PLANTS || defined WAVING_LEAVES
+	float istopv = gl_MultiTexCoord0.t < mc_midTexCoord.t ? 1.0 : 0.0;
+	worldPos = getWavingBlocks(worldPos, istopv, lmCoord.y);
+	gl_Position = shadowProjection * (shadowModelView * vec4(worldPos, 1.0));
+	#endif
 
 	float dist = sqrt(gl_Position.x * gl_Position.x + gl_Position.y * gl_Position.y);
 	float distortFactor = dist * shadowMapBias + (1.0 - shadowMapBias);

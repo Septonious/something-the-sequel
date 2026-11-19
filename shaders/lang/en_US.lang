@@ -414,3 +414,7 @@ option.TONEMAP_CONTRAST=Contrast
 option.TONEMAP_WHITE_THRESHOLD=White Threshold
 option.TONEMAP_HIGHLIGHTS=Highlights Intensity
 option.TONEMAP_SHADOWS=Shadows Intensity
+
+screen.OTHER=Other
+option.WAVING_PLANTS=Waving Plants
+option.WAVING_LEAVES=Waving Leaves

@@ -206,7 +206,7 @@ uniform float viewWidth, viewHeight;
 #endif
 
 #if defined WAVING_LEAVES || defined WAVING_PLANTS
-uniform float frameTimeCounter;
+uniform float frameTimeCounter, rainStrength;
 
 uniform vec3 cameraPosition;
 #endif
