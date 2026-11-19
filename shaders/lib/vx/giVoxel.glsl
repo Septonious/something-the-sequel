@@ -3,7 +3,7 @@ bool giVoxelNonFull(uint word) {
 }
 
 bool giVoxelSeeThrough(uint word) {
-	return ((word >> 30u) & 1u) != 0u;
+	return word != 0u && ((word >> 30u) & 1u) == (word >> 31u);
 }
 
 bool giVoxelLeaves(uint word) {
@@ -57,7 +57,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 	if (!isInsideVoxelVolume(voxelPos)) return;
 
 	bool plant = (blockId >= 10304 && blockId <= 10319 && blockId != 10314) || (blockId >= 10035 && blockId <= 10040);
-	bool corner = all(greaterThanEqual(abs(midBlock), vec3(31.0)));
+	bool corner = all(greaterThanEqual(abs(midBlock), vec3(31.5)));
 	ivec3 cell = ivec3(voxelPos);
 	ivec3 previousCell = cell + ivec3(floor(cameraPosition) - floor(previousCameraPosition));
 	int quadVertex = gl_VertexID & 3;
@@ -125,9 +125,22 @@ void updateVoxelGi(int blockId, float skyLight) {
 
 	uvec3 albedo = uvec3(clamp(texel.rgb * gl_Color.rgb, 0.0, 1.0) * 127.0 + 0.5);
 	uint priority = gl_Normal.y > 0.5 ? 3u : (gl_Normal.y > -0.5 ? 2u : 1u);
-	uint word = (corner ? 0u : 0x80000000u) | (uint(texel.a < 0.5 || (blockId >= 10201 && blockId <= 10216)) << 30u) | (priority << 28u) | (uint(blockId == 10314) << 27u) | (uint(plant) << 26u) | (uint(clamp(skyLight, 0.0, 1.0) * 31.0 + 0.5) << 21u) | (albedo.r << 14u) | (albedo.g << 7u) | albedo.b;
+	uint word = (corner ? 0u : 0x80000000u) | (uint(corner != (texel.a < 0.5 || (blockId >= 10201 && blockId <= 10216))) << 30u) | (priority << 28u) | (uint(blockId == 10314) << 27u) | (uint(plant) << 26u) | (uint(clamp(skyLight, 0.0, 1.0) * 31.0 + 0.5) << 21u) | (albedo.r << 14u) | (albedo.g << 7u) | albedo.b;
 
 	imageAtomicMax(voxel_gi_img, ivec3(voxelPos), word);
+
+	#ifdef WORLD_SPACE_REFLECTIONS
+	if (corner && !head) {
+		vec2 atlasSize = vec2(textureSize(tex, 0));
+		uvec2 spriteLow = min(uvec2(min(gl_MultiTexCoord0.xy, mc_midTexCoord.xy * 2.0 - gl_MultiTexCoord0.xy) * atlasSize + 0.5), uvec2(8191u));
+		uint spriteSize = uint(abs(mc_midTexCoord.x - gl_MultiTexCoord0.x) * 2.0 * atlasSize.x + 0.5);
+		uint sprite = (uint(texel.a >= 0.5) << 31u) | (uint(any(lessThan(gl_Color.rgb, vec3(0.99)))) << 30u) | (spriteLow.x << 17u) | (spriteLow.y << 4u) | uint(findMSB(max(spriteSize, 1u)));
+
+		imageAtomicMax(voxel_sprite_img, ivec3(cell.x * 3 + (gl_Normal.y > 0.5 ? 0 : (gl_Normal.y < -0.5 ? 1 : 2)), cell.yz), sprite);
+	}
+
+	if (!plant && !giVoxelSeeThrough(word)) imageStore(voxel_sprite_img, ivec3(int(voxelVolumeSize.x) * 3 + (cell.x >> 2), cell.y >> 2, cell.z >> 2), uvec4(1u));
+	#endif
 
 	if ((word & 0xC4000000u) == 0x80000000u) {
 		if ((frameCounter & 1) == 0) {

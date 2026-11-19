@@ -97,6 +97,10 @@ writeonly uniform uimage3D voxel_shape_img, voxel_shape_img_copy;
 
 layout(r32ui) uniform uimage3D voxel_gi_img;
 layout(r32ui) uniform uimage3D quad_hash_img;
+
+#ifdef WORLD_SPACE_REFLECTIONS
+layout(r32ui) uniform uimage3D voxel_sprite_img;
+#endif
 #endif
 
 #if defined WAVING_LEAVES || defined WAVING_PLANTS

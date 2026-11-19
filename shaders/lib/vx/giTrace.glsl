@@ -2,6 +2,7 @@ const int giTraceSteps = GI_RAY_STEPS;
 
 uint giSeed = 0u;
 float giHitBlockLuminance = 0.0;
+float giLeafPass = GI_LEAF_PASS;
 vec3 giPassLight = vec3(0.0);
 ivec3 giPassCell = ivec3(0);
 ivec3 giHitOwner = ivec3(0);
@@ -81,7 +82,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 			continue;
 		}
 
-		if (giVoxelLeaves(hitWord) && giRandom() < GI_LEAF_PASS) continue;
+		if (giVoxelLeaves(hitWord) && giRandom() < giLeafPass) continue;
 
 		if (giVoxelNonFull(hitWord)) {
 			uint bounds = texelFetch(voxelBoxSampler, ivec3(cell.x * 2 + 1, cell.yz), 0).r;
