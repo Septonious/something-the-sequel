@@ -41,5 +41,12 @@ vec4 voxelReflectionTrace(sampler2D atlas, vec3 origin, vec3 direction, vec3 lig
 		albedo = pow(colour, vec3(2.2));
 	}
 
-	return vec4(mix(giHitRadiance(hitCell, hitFace, hitPos, hitWord | 0x1FFFFFu, lightDirection) * albedo + giPassLight, screenColour, screenWeight), 0.0);
+	vec3 shaded = pow(giHitRadiance(hitCell, hitFace, hitPos, hitWord | 0x1FFFFFu, lightDirection) * albedo + giPassLight, vec3(1.0 / 2.2));
+	vec3 hitWorldPos = voxelToWorld(hitPos);
+	vec3 hitViewPos = mat3(gbufferModelView) * hitWorldPos + gbufferModelView[3].xyz;
+	float hitHardMixFactor = 0.0;
+
+	Fog(shaded, hitViewPos, getAtmosphere(hitViewPos, hitWorldPos, hitHardMixFactor), 0.0);
+
+	return vec4(mix(pow(shaded, vec3(2.2)), screenColour, screenWeight), 0.0);
 }

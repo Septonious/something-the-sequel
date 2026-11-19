@@ -161,6 +161,15 @@ void main() {
 				float screenWeight = voxelHitScreen(depthtex0, voxelOrigin + worldReflection * traceDistance, hitFace, screenUv);
 
 				reflection = pow(giHitRadiance(hitCell, hitFace, voxelOrigin + worldReflection * traceDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec) + giPassLight, vec3(1.0 / 2.2)) * (1.0 - blindFactor);
+
+				if (screenWeight < 1.0) {
+					vec3 hitWorldPos = voxelToWorld(voxelOrigin + worldReflection * traceDistance);
+					vec3 hitViewPos = mat3(gbufferModelView) * hitWorldPos + gbufferModelView[3].xyz;
+					float hitHardMixFactor = 0.0;
+
+					Fog(reflection, hitViewPos, getAtmosphere(hitViewPos, hitWorldPos, hitHardMixFactor), z0);
+				}
+
 				if (screenWeight > 0.0) reflection = mix(reflection, texture2D(colortex0, screenUv).rgb, screenWeight);
 			} else {
 				bool farGeometry;
