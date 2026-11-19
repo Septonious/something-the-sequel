@@ -67,6 +67,6 @@ void drawCirrusClouds(inout vec4 cirrus, in vec3 atmosphereColor, in vec3 worldP
     float transmission = mix(0.15, 1.0, clamp(0.5 + (coarseDensity - lightDensity) * 4.0, 0.0, 1.0));
     vec3 color = fmix(ambientColor * (0.6 + 0.4 * powder), lightColor * (0.1 + 0.9 * powder) * shadowFade, 0.01 + 0.99 * transmission * (0.25 + clamp(lightDirection.y, 0.0, 1.0) * 0.75));
 
-    cirrus = vec4(pow(color * CIRRUS_BRIGHTNESS, vec3(1.0 / 2.2)), density * fade * fade);
+    cirrus = vec4(pow(color * CIRRUS_BRIGHTNESS, vec3(1.0 / 2.2)), density * fade * fade * (1.0 - occlusion));
     occlusion += sqrt(density) * fade;
 }
