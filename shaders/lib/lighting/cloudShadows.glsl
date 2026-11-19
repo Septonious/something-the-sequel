@@ -3,14 +3,14 @@
 
 //Cloud shadows use the same horizontal coverage domain as the volumetric
 //clouds, but only one texture sample rather than a density raymarch.
-uniform sampler2D colortex8;
+uniform sampler2D cloudNoiseSampler;
 uniform float cloudRain;
 
 float getCloudShadowCoverage(vec2 noisePos) {
     vec2 coverageUv = noisePos * VC_COVERAGE_SCALE;
 
     //The prefiltered G channel follows the same R coverage without fine detail samples.
-    float coverageNoise = texture2D(colortex8, coverageUv).g;
+    float coverageNoise = texture2D(cloudNoiseSampler, coverageUv).g;
     float coverageBias = 0.50 - cloudRain * 0.45 - VC_CLOUD_COVERAGE * 0.75;
     float attenuation = smoothstep(0.025, 1.0, 0.35);
     float coverageThreshold = coverageBias + (1.0 - clamp(coverageBias, 0.0, 1.0)) * attenuation;

@@ -64,6 +64,7 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/util/ToWorld.glsl"
 #include "/lib/color/lightColor.glsl"
 #include "/lib/atmosphere/sky.glsl"
+#include "/lib/atmosphere/skyCapture.glsl"
 #include "/lib/atmosphere/fog.glsl"
 #include "/lib/pbr/raytracer.glsl"
 
@@ -143,7 +144,8 @@ void main() {
 
 		vec3 reflectedViewPos = reflect(nViewPos, normal);
 		float reflectedHardMixFactor = 0.0;
-		vec3 reflection = getAtmosphere(reflectedViewPos, ToWorld(reflectedViewPos), reflectedHardMixFactor) * (1.0 - blindFactor);
+		vec3 reflectedWorldPos = ToWorld(reflectedViewPos);
+		vec3 reflection = (reflectedWorldPos.y > 0.0 ? getSkyCapture(reflectedWorldPos) : getAtmosphere(reflectedViewPos, reflectedWorldPos, reflectedHardMixFactor)) * (1.0 - blindFactor);
 
 		#ifdef WORLD_SPACE_REFLECTIONS
 		vec3 worldReflection = normalize(mat3(gbufferModelViewInverse) * reflectedViewPos);

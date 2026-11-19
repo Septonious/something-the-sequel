@@ -159,7 +159,7 @@ float CloudValue3D(vec3 pos) {
     float zCell = floor(pos.z);
     float zFraction = fract(pos.z);
     vec2 uv = pos.xy - vec2(97.0 * zCell);
-    vec2 rg = texture2D(colortex8, uv / 512.0).ba;
+    vec2 rg = texture2D(cloudNoiseSampler, uv / 512.0).ba;
     return CloudCubeSmooth(mix(rg.x, rg.y, zFraction));
 }
 
@@ -192,7 +192,7 @@ float CloudShapeBase(
 
     //One packed RGBA lookup provides the coverage and its low-pass shadow field.
     vec2 coverageUv = noisePos.xz * VC_COVERAGE_SCALE;
-    vec2 coverageData = texture2D(colortex8, coverageUv).rg;
+    vec2 coverageData = texture2D(cloudNoiseSampler, coverageUv).rg;
 
     float coverageNoise = coverageData.r + (coverageData.r - coverageData.g) * VC_CELLULAR_SHAPING * weather.cellularStrength;
           coverageNoise = CloudSaturate(coverageNoise);
@@ -301,7 +301,7 @@ vec3 CloudLighting(vec3 sourcePos, float density, CloudWeather weather, vec2 win
 
 // Source-model raymarch, weather, optical transmittance, distance fading and geometry clipping.
 // The incompatible PhysicalSL lighting/exposure are deliberately not used.
-void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, float dither, inout vec2 cloudRange) {
+void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, vec3 rayDir, float sceneDistance, float dither, inout vec2 cloudRange) {
     float visibility = caveFactor * (1.0 - blindFactor);
     #if MC_VERSION >= 11900
           visibility *= 1.0 - darknessFactor;
@@ -309,15 +309,11 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
 
     if (visibility <= 0.0) return;
 
-    vec3 viewRay = normalize(ToView(vec3(texCoord, 1.0)));
-    vec3 rayDir = normalize(mat3(gbufferModelViewInverse) * viewRay);
     CloudWeather weather = CloudGetWeather();
     float bottom = weather.height;
     float top = weather.height + weather.thickness;
     float cameraBodyHeight = (cameraPosition.y - bottom) / CloudBodyThickness(weather);
     float insideCloudLayer = smoothstep(0.0, 0.1, cameraBodyHeight) * (1.0 - smoothstep(0.9, 1.0, cameraBodyHeight));
-    float sceneDistance = VC_CLOUD_MAX_DISTANCE;
-    if (z0 < 0.999999) sceneDistance = min(sceneDistance, length(ToView(vec3(texCoord, z0))));
 
     float rayStart;
     float rayEnd;
@@ -386,6 +382,13 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     vc.a = clamp(opacity, 0.0, 1.0);
     vc.rgb = scattering / max(1.0 - transmittance, 0.0001);
     cloudRange = vec2(firstCloudDistance, lastCloudDistance);
+}
+
+void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, float dither, inout vec2 cloudRange) {
+    float sceneDistance = VC_CLOUD_MAX_DISTANCE;
+    if (z0 < 0.999999) sceneDistance = min(sceneDistance, length(ToView(vec3(texCoord, z0))));
+
+    computeVolumetricClouds(vc, atmosphereColor, normalize(mat3(gbufferModelViewInverse) * normalize(ToView(vec3(texCoord, 1.0)))), sceneDistance, dither, cloudRange);
 }
 
 #endif

@@ -148,6 +148,7 @@ vec4 giCacheFetch(ivec3 cell) {
 #include "/lib/pbr/farReflection.glsl"
 #endif
 
+#include "/lib/atmosphere/skyCapture.glsl"
 #include "/lib/pbr/raytracer.glsl"
 #include "/lib/pbr/waterReflection.glsl"
 #endif

@@ -2,7 +2,7 @@ float getCirrusDensity(vec2 coord, vec4 detail, bool fine, out float coarse) {
     coarse = 0.0;
 
     float amount = 1.0 - CIRRUS_AMOUNT + moonVisibility * 0.05;
-    float sheet = smoothstep(amount, amount + 0.45, texture2D(colortex8, coord * vec2(0.44, 0.20)).g);
+    float sheet = smoothstep(amount, amount + 0.45, texture2D(cloudNoiseSampler, coord * vec2(0.44, 0.20)).g);
     if (sheet <= 0.0) return 0.0;
 
     vec2 fibreCoord = vec2(coord.x * 0.966 - coord.y * 0.259, coord.x * 0.259 + coord.y * 0.966);

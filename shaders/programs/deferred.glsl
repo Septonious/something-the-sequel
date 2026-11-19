@@ -48,7 +48,7 @@ uniform sampler2D depthtex0;
 uniform sampler2D noisetex;
 
 #if defined VOLUMETRIC_CLOUDS || defined CIRRUS_CLOUDS
-uniform sampler2D colortex8;
+uniform sampler2D cloudNoiseSampler;
 uniform float cloudRain;
 #endif
 

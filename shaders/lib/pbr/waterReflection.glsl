@@ -57,7 +57,7 @@ void getReflection(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, in vec3
 			vec3 viewPosRef = reflect(normalize(viewPos), newNormal);
 			vec3 worldPosRef = ToWorld(viewPosRef);
             float atmosphereHardMixFactor = 0.0;
-			vec3 reflectedAtmosphere = getAtmosphere(viewPosRef.xyz, worldPosRef.xyz, atmosphereHardMixFactor);
+			vec3 reflectedAtmosphere = worldPosRef.y > 0.0 ? getSkyCapture(worldPosRef) : getAtmosphere(viewPosRef.xyz, worldPosRef.xyz, atmosphereHardMixFactor);
 
 			float waterSkyOcclusion = skyLightMap;
 				  waterSkyOcclusion *= waterSkyOcclusion;
