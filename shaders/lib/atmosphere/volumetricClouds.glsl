@@ -348,6 +348,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
     float sourceStepLength = stepLength * length(sourceRay);
     float sampleDistance = rayStart + stepLength * clamp(dither, 0.0, 0.999999);
     vec2 windOffset = CloudWindOffset(weather);
+    vec3 skyFogColor = pow(atmosphereColor, vec3(2.2));
     CloudLightingData lighting;
     bool lightingReady = false;
 
@@ -373,6 +374,7 @@ void computeVolumetricClouds(inout vec4 vc, in vec3 atmosphereColor, float z0, f
                     lightingReady = true;
                 }
                 vec3 sampleColor = CloudLighting(sourcePos, density, weather, windOffset, lighting);
+                     sampleColor = mix(skyFogColor, sampleColor, exp(-pow2(sampleDistance * VC_SKY_FOG / 1800.0)));
                 scattering += sampleColor * stepOpacity * transmittance;
             }
             transmittance *= 1.0 - stepOpacity;

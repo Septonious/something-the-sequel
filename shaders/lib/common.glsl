@@ -63,6 +63,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VC_CLOUD_SPEED 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 2.00]
 #define VC_WIND_ANGLE 30.0 //[0.0 15.0 30.0 45.0 60.0 90.0 120.0 150.0 180.0 210.0 240.0 270.0 300.0 330.0]
 #define VC_RAIN_TRANSITION 10 //[2 4 6 8 10 12 15 20 30]
+#define VC_SKY_FOG 1.00 //[0.00 0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 
 //Cloud source-domain constants, shared by volume and ground-shadow projection.
 #define VC_SOURCE_DEPTH 4000.0
