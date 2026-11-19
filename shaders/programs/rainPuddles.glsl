@@ -144,7 +144,7 @@ void main() {
 
 		vec3 reflectedViewPos = reflect(nViewPos, normal);
 		float reflectedHardMixFactor = 0.0;
-		vec3 reflectedWorldPos = ToWorld(reflectedViewPos);
+		vec3 reflectedWorldPos = mat3(gbufferModelViewInverse) * reflectedViewPos;
 		vec3 reflection = (reflectedWorldPos.y > 0.0 ? getSkyCapture(reflectedWorldPos) : getAtmosphere(reflectedViewPos, reflectedWorldPos, reflectedHardMixFactor)) * (1.0 - blindFactor);
 
 		#ifdef WORLD_SPACE_REFLECTIONS

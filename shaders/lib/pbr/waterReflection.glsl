@@ -55,7 +55,7 @@ void getReflection(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, in vec3
 		if (skyLightMap > 0.95) {
 			#ifdef OVERWORLD
 			vec3 viewPosRef = reflect(normalize(viewPos), newNormal);
-			vec3 worldPosRef = ToWorld(viewPosRef);
+			vec3 worldPosRef = mat3(gbufferModelViewInverse) * viewPosRef;
             float atmosphereHardMixFactor = 0.0;
 			vec3 reflectedAtmosphere = worldPosRef.y > 0.0 ? getSkyCapture(worldPosRef) : getAtmosphere(viewPosRef.xyz, worldPosRef.xyz, atmosphereHardMixFactor);
 
