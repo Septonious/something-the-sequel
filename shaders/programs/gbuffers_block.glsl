@@ -174,6 +174,11 @@ void main() {
     gl_FragData[3] = vec4(0.0, giSurface, albedo.a);
     gl_FragData[4] = vec4(giReceptor, albedo.a);
     #endif
+
+    #ifdef RAIN_PUDDLES
+    vec4 puddleData = vec4(0.0, 0.0, 0.0, albedo.a);
+    #include "/lib/pbr/puddleTarget.glsl"
+    #endif
 }
 
 #endif

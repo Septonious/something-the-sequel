@@ -25,6 +25,10 @@ uniform float darknessFactor;
 uniform float wetness;
 uniform float shadowFade;
 uniform float timeAngle, timeBrightness;
+
+#ifdef RAIN_PUDDLES
+uniform float isRainyBiome;
+#endif
 #endif
 
 uniform ivec2 eyeBrightnessSmooth;
@@ -149,6 +153,23 @@ void main() {
 	if (smoothness > 0.01 && f0 <= 0.0) f0 = 0.04;
 	#endif
 
+	#if defined RAIN_PUDDLES && defined OVERWORLD
+	float puddle = 0.0;
+	float rainWetness = wetness * isRainyBiome * clamp(lightmap.y * 15.0 - 14.0, 0.0, 1.0) * (1.0 - leaves - foliage - saplings) * float(emission < 0.01);
+
+	if (rainWetness > 0.001) {
+		vec3 worldNormal = mat3(gbufferModelViewInverse) * normal;
+		vec2 puddleCoord = worldPos.xz + cameraPosition.xz;
+		float puddleNoise = texture2D(noisetex, puddleCoord / 320.0).g * 0.65 + texture2D(noisetex, puddleCoord / 96.0 + 0.37).g * 0.35;
+		float puddleThreshold = rainWetness * PUDDLE_AMOUNT;
+		puddle = (1.0 - smoothstep(puddleThreshold - 0.02, puddleThreshold, puddleNoise)) * step(0.99, worldNormal.y);
+
+		float wetDarkening = max(rainWetness * clamp(worldNormal.y * 0.3 + 0.3, 0.0, 0.6), puddle);
+		albedo.rgb = pow(albedo.rgb, vec3(1.0 + wetDarkening * 0.35)) * (1.0 - wetDarkening * 0.2);
+		smoothness = max(smoothness, wetDarkening * 0.6 + puddle * 0.35);
+	}
+	#endif
+
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, subsurface, emission, smoothness, parallaxShadow, metalness, f0);
 
@@ -178,6 +199,11 @@ void main() {
     gl_FragData[2] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
     gl_FragData[3] = vec4(foliage, giSurface, albedo.a);
     gl_FragData[4] = vec4(giReceptor, albedo.a);
+    #endif
+
+    #if defined RAIN_PUDDLES && defined OVERWORLD
+    vec4 puddleData = vec4(puddle, 0.0, 0.0, 1.0);
+    #include "/lib/pbr/puddleTarget.glsl"
     #endif
 }
 
