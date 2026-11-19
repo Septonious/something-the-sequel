@@ -52,11 +52,11 @@ uniform sampler2D depthtex1;
 
 #ifdef VOLUMETRIC_CLOUDS
 uniform sampler2D colortex5, colortex6;
+#endif
 
 #ifdef GI
 uniform sampler2D colortex14;
 uniform sampler2D colortex15;
-#endif
 #endif
 
 uniform mat4 gbufferProjection;
