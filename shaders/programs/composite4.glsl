@@ -23,7 +23,6 @@ uniform mat4 gbufferPreviousModelView, gbufferModelViewInverse;
 
 // Pipeline Options //
 const bool colortex2Clear = false;
-const bool colortex3Clear = false;
 
 // Includes //
 #ifdef TAA

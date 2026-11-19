@@ -79,9 +79,6 @@ uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 
 // Pipeline Options //
-const bool colortex4Clear = false;
-const bool colortex5Clear = false;
-const bool colortex6Clear = false;
 
 // Global Variables //
 #if defined OVERWORLD

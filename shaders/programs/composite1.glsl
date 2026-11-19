@@ -15,26 +15,40 @@ flat in float closedSpaceFactor;
 // Uniforms //
 uniform sampler2D colortex0;
 
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
-uniform sampler2D depthtex0, noisetex;
-uniform int frameCounter, isEyeInWater;
+#if defined WATER_FOG || defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+uniform sampler2D depthtex0;
+uniform int isEyeInWater;
 uniform float frameTimeCounter;
 uniform float blindFactor;
 #if MC_VERSION >= 11900
 uniform float darknessFactor;
 #endif
-uniform vec3 cameraPosition;
-uniform mat4 gbufferProjectionInverse, gbufferModelViewInverse;
+uniform mat4 gbufferProjectionInverse;
 uniform ivec2 eyeBrightnessSmooth;
 uniform float timeBrightness, wetness;
+#endif
+
+#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+uniform sampler2D noisetex;
+uniform int frameCounter;
+uniform vec3 cameraPosition;
+uniform mat4 gbufferModelViewInverse;
 
 float eBS = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
 float caveFactor = mix(clamp((cameraPosition.y - 56.0) / 16.0, float(sign(isEyeInWater)), 1.0), 1.0, eBS);
 #endif
 
-#ifdef VL
+#if defined WATER_FOG || defined VL
 uniform float timeAngle, shadowFade;
-uniform mat4 gbufferModelView, shadowModelView, shadowProjection;
+uniform mat4 gbufferModelView;
+#endif
+
+#ifdef WATER_FOG
+uniform float eyeAltitude;
+#endif
+
+#ifdef VL
+uniform mat4 shadowModelView, shadowProjection;
 uniform sampler2DShadow shadowtex0;
 uniform vec3 skyColor;
 
@@ -53,12 +67,21 @@ uniform sampler3D fogVisibilitySampler;
 #endif
 
 // Global Variables //
-#ifdef VL
+#if defined WATER_FOG || defined VL
 const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
 float fractTimeAngle = fract(timeAngle - 0.25);
 float ang = (fractTimeAngle + (cos(fractTimeAngle * 3.14159265358979) * -0.5 + 0.5 - fractTimeAngle) / 3.0) * 6.28318530717959;
 vec3 sunVec = normalize((gbufferModelView * vec4(vec3(-sin(ang), cos(ang) * sunRotationData) * 2000.0, 1.0)).xyz);
 vec3 upVec = normalize(gbufferModelView[1].xyz);
+#endif
+
+#ifdef WATER_FOG
+float waterEyeBrightness = eyeBrightnessSmooth.y / 240.0;
+float waterCaveFactor = mix(clamp((eyeAltitude - 56.0) / 16.0, float(sign(isEyeInWater)), 1.0), 1.0, sqrt(waterEyeBrightness));
+float waterSunVisibility = clamp(dot(sunVec, upVec) + 0.1, 0.0, 0.25) * 4.0;
+#endif
+
+#ifdef VL
 float sunVisibility = clamp((dot(sunVec, upVec) + 0.15) * 3.0, 0.0, 1.0);
 vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.0);
 #endif
@@ -66,7 +89,20 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 // Includes //
 #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
 #include "/lib/util/transformMacros.glsl"
+#endif
+
+#if defined WATER_FOG || defined VL || (defined LPV_FOG && defined VX_SUPPORT)
 #include "/lib/util/ToView.glsl"
+#endif
+
+#ifdef WATER_FOG
+#define eBS waterEyeBrightness
+#define caveFactor waterCaveFactor
+#define sunVisibility waterSunVisibility
+#include "/lib/water/waterFog.glsl"
+#undef eBS
+#undef caveFactor
+#undef sunVisibility
 #endif
 
 #ifdef VL
@@ -87,6 +123,23 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 // Main //
 void main() {
     vec3 color = texture2D(colortex0, texCoord).rgb;
+    #ifdef GI
+         color = max(color, vec3(0.0));
+    #endif
+         color = pow(color, vec3(2.2));
+
+    #ifdef WATER_FOG
+    if (isEyeInWater == 1) {
+        float z0 = texture2D(depthtex0, texCoord).r;
+        vec3 viewPos = ToView(vec3(texCoord, z0));
+
+        vec3 colorMult = vec3(1.0);
+        vec4 waterFog = getWaterFog(colorMult, viewPos);
+        color *= colorMult;
+        color = mix(sqrt(color), sqrt(waterFog.rgb), waterFog.a);
+        color *= color;
+    }
+    #endif
 
     #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
     if (isEyeInWater != 2) {

@@ -1,5 +1,16 @@
 #include "/lib/common.glsl"
 
+#ifdef GI_CACHE_TRACE
+layout (local_size_x = 16, local_size_y = 1, local_size_z = 32) in;
+
+#if VOXEL_VOLUME_SIZE == 128
+const ivec3 workGroups = ivec3(2, 64, 4);
+#elif VOXEL_VOLUME_SIZE == 192
+const ivec3 workGroups = ivec3(3, 96, 6);
+#else
+const ivec3 workGroups = ivec3(4, 128, 8);
+#endif
+#else
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 #if VOXEL_VOLUME_SIZE == 128
@@ -8,6 +19,7 @@ const ivec3 workGroups = ivec3(16, 8, 16);
 const ivec3 workGroups = ivec3(24, 12, 24);
 #else
 const ivec3 workGroups = ivec3(32, 16, 32);
+#endif
 #endif
 
 uniform int frameCounter;
@@ -68,62 +80,69 @@ bool giSolid(ivec3 cell) {
 
 void main() {
 	ivec3 pos = ivec3(gl_GlobalInvocationID);
+
+	#ifdef GI_CACHE_TRACE
+	pos.x = pos.x * 4 + ((-(pos.y * 3 + pos.z * 5 + frameCounter)) & 3);
+	#endif
+
 	vec4 cache = giCacheFetch(pos);
 
 	if (any(isnan(cache)) || any(isinf(cache))) cache = vec4(0.0, 0.0, 0.0, -1.0);
 
 	cache = clamp(cache, vec4(0.0, 0.0, 0.0, -1.0), vec4(64.0, 64.0, 64.0, 1.0));
 
-	if (giSolid(pos)) {
-		cache = vec4(0.0, 0.0, 0.0, -1.0);
-	} else if (((pos.x + pos.y * 3 + pos.z * 5 + frameCounter) & 3) == 0) {
-		giSeed = uint(pos.x) * 1973u + uint(pos.y) * 9277u + uint(pos.z) * 26699u + uint(frameCounter) * 4099u;
-		giRandom();
+	#ifdef GI_CACHE_TRACE
+	if (giSolid(pos)) return;
 
-		ivec3 face = ivec3(0);
-		float faces = 0.0;
+	giSeed = uint(pos.x) * 1973u + uint(pos.y) * 9277u + uint(pos.z) * 26699u + uint(frameCounter) * 4099u;
+	giRandom();
 
-		for (int i = 0; i < 6; i++) {
-			ivec3 offset = ivec3(i == 0, i == 1, i == 2) - ivec3(i == 3, i == 4, i == 5);
+	ivec3 face = ivec3(0);
+	float faces = 0.0;
 
-			uint neighbour = any(lessThan(pos + offset, ivec3(0))) || any(greaterThanEqual(pos + offset, ivec3(voxelVolumeSize))) ? 0u : texelFetch(voxelGiSampler, pos + offset, 0).r;
+	for (int i = 0; i < 6; i++) {
+		ivec3 offset = ivec3(i == 0, i == 1, i == 2) - ivec3(i == 3, i == 4, i == 5);
 
-			if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) {
-				faces += 1.0;
+		uint neighbour = any(lessThan(pos + offset, ivec3(0))) || any(greaterThanEqual(pos + offset, ivec3(voxelVolumeSize))) ? 0u : texelFetch(voxelGiSampler, pos + offset, 0).r;
 
-				if (giRandom() * faces < 1.0) face = offset;
-			}
+		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) {
+			faces += 1.0;
+
+			if (giRandom() * faces < 1.0) face = offset;
 		}
-
-		if (faces > 0.0) {
-			vec3 normal = -vec3(face);
-			vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
-			vec3 direction, lampDirection;
-			vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
-			vec4 current = giTraceRadiance(origin, direction, lightDirection) * weights.x;
-
-			if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
-
-			cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
-		} else {
-			cache = vec4(0.0, 0.0, 0.0, -1.0);
-		}
-
-		#ifdef LPV_FOG
-		vec3 fogLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, pos, 0).rgb : texelFetch(floodfillSampler, pos, 0).rgb;
-
-		if (maxOf(fogLight) > 0.0001) {
-			float offsetX = giRandom();
-			float offsetY = giRandom();
-			float offsetZ = giRandom();
-			ivec3 fogSlot = ivec3(mod(vec3(pos) + floor(cameraPosition), voxelVolumeSize));
-			float fogVisibility = giBlockVisibility(vec3(pos) + 0.05 + vec3(offsetX, offsetY, offsetZ) * 0.9);
-			float fogHistory = imageLoad(fog_visibility_img, fogSlot).r;
-
-			imageStore(fog_visibility_img, fogSlot, vec4(fogHistory >= 0.0 && fogHistory <= 1.0 ? mix(fogHistory, fogVisibility, 0.0625) : fogVisibility));
-		}
-		#endif
 	}
+
+	if (faces > 0.0) {
+		vec3 normal = -vec3(face);
+		vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
+		vec3 direction, lampDirection;
+		vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
+		vec4 current = giTraceRadiance(origin, direction, lightDirection) * weights.x;
+
+		if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
+
+		cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
+	} else {
+		cache = vec4(0.0, 0.0, 0.0, -1.0);
+	}
+
+	#ifdef LPV_FOG
+	vec3 fogLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, pos, 0).rgb : texelFetch(floodfillSampler, pos, 0).rgb;
+
+	if (maxOf(fogLight) > 0.0001) {
+		float offsetX = giRandom();
+		float offsetY = giRandom();
+		float offsetZ = giRandom();
+		ivec3 fogSlot = ivec3(mod(vec3(pos) + floor(cameraPosition), voxelVolumeSize));
+		float fogVisibility = giBlockVisibility(vec3(pos) + 0.05 + vec3(offsetX, offsetY, offsetZ) * 0.9);
+		float fogHistory = imageLoad(fog_visibility_img, fogSlot).r;
+
+		imageStore(fog_visibility_img, fogSlot, vec4(fogHistory >= 0.0 && fogHistory <= 1.0 ? mix(fogHistory, fogVisibility, 0.0625) : fogVisibility));
+	}
+	#endif
+	#else
+	if (giSolid(pos)) cache = vec4(0.0, 0.0, 0.0, -1.0);
+	#endif
 
 	if ((frameCounter & 1) == 0) {
 		imageStore(gi_cache_img_copy, pos, cache);

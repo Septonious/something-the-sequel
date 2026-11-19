@@ -274,13 +274,15 @@ void main() {
             historyGi /= historyWeight;
             historyFar /= historyWeight;
         } else {
-            for (int i = 0; i < 2; i++) {
+            int seeds = clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2;
+
+            for (int i = 0; i < seeds; i++) {
                 vec3 seedDirection, seedLampDirection;
                 vec2 seedWeights = giLampedDirections(origin, worldNormal, seedDirection, seedLampDirection);
 
-                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection) * (seedWeights.x * 0.5);
+                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection) * (seedWeights.x / float(seeds));
 
-                if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection) * (seedWeights.y * 0.5);
+                if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection) * (seedWeights.y / float(seeds));
             }
 
             if (any(isnan(historyGi)) || any(isinf(historyGi))) historyGi = vec4(0.0, 0.0, 0.0, 1.0);

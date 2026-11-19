@@ -3,4 +3,4 @@
 #define FSH
 #define OVERWORLD
 
-#include "/programs/composite.glsl"
+#include "/programs/gbuffers_sky.glsl"
