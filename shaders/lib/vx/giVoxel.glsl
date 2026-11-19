@@ -60,7 +60,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 	bool corner = all(greaterThanEqual(abs(midBlock), vec3(31.5)));
 	ivec3 cell = ivec3(voxelPos);
 	ivec3 previousCell = cell + ivec3(floor(cameraPosition) - floor(previousCameraPosition));
-	int quadVertex = gl_VertexID & 3;
+	int quadVertex = (gl_VertexID - gl_BaseVertexARB) & 3;
 	uint shape = 0u;
 
 	if (!plant && quadVertex != 2 && all(lessThan(cell, ivec3(voxelVolumeSize))) && all(greaterThanEqual(previousCell, ivec3(0))) && all(lessThan(previousCell, ivec3(voxelVolumeSize)))) {
@@ -73,7 +73,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 
 	if (shape == uint((frameCounter + 254) % 255 + 1)) {
 		uint cellIndex = uint(cell.x + (cell.y + cell.z * (VOXEL_VOLUME_SIZE / 2)) * VOXEL_VOLUME_SIZE);
-		uint quadId = uint(gl_VertexID >> 2) + uint(renderStage) * 0x9e3779b9u;
+		uint quadId = uint(gl_VertexID - quadVertex) + uint(renderStage) * 0x9e3779b9u;
 		uint keyA = giHash(quadId + giHash(cellIndex)) | 1u;
 		uint keyB = giHash(cellIndex + giHash(quadId ^ 0x85ebca6bu)) | 1u;
 		uint slot = keyA & 262143u;
