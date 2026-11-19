@@ -13,7 +13,6 @@ flat in int mat;
 // Uniforms //
 uniform int isEyeInWater;
 uniform int frameCounter;
-uniform int renderStage;
 
 uniform float frameTimeCounter;
 uniform float viewWidth, viewHeight;
@@ -105,7 +104,7 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 // Main //
 void main() {
     vec4 albedo = texture2D(texture, texCoord) * color;
-    if (renderStage != MC_RENDER_STAGE_TERRAIN_SOLID && albedo.a <= 0.1) discard;
+    if (!(albedo.a > 0.1)) discard;
 
     vec2 lightmap = clamp(lmCoord, vec2(0.0), vec2(1.0));
     vec3 newNormal = normal;

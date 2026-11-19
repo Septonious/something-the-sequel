@@ -171,22 +171,24 @@ void computeVolumetricLight(inout vec3 color, float dither) {
                 if ((frameCounter & 1) == 0) lightVolume = texture3D(floodfillSamplerCopy, voxelPos).rgb;
                 else lightVolume = texture3D(floodfillSampler, voxelPos).rgb;
 
-                #ifdef GI
-                float lampVisibility = texelFetch(fogVisibilitySampler, ivec3(mod(floor(worldToVoxel(fogWorldPos) + fract(sampleJitter * vec3(7.0, 13.0, 29.0)) - 0.5) + floor(cameraPosition), voxelVolumeSize)), 0).r;
+                if (pow(maxOf(max(lightVolume, vec3(0.0))), 1.0 / FLOODFILL_RADIUS) > 0.005) {
+                    #ifdef GI
+                    float lampVisibility = texelFetch(fogVisibilitySampler, ivec3(mod(floor(worldToVoxel(fogWorldPos) + fract(sampleJitter * vec3(7.0, 13.0, 29.0)) - 0.5) + floor(cameraPosition), voxelVolumeSize)), 0).r;
 
-                if (lampVisibility >= 0.0 && lampVisibility <= 1.0) lightVolume *= lampVisibility;
-                #endif
+                    if (lampVisibility >= 0.0 && lampVisibility <= 1.0) lightVolume *= lampVisibility;
+                    #endif
 
-                float volumeFade = maxOf(abs(fogWorldPos) / voxelHalfSize);
-                      volumeFade = clamp(volumeFade, 0.0, 1.0);
-                      volumeFade = 1.0 - volumeFade * volumeFade;
+                    float volumeFade = maxOf(abs(fogWorldPos) / voxelHalfSize);
+                          volumeFade = clamp(volumeFade, 0.0, 1.0);
+                          volumeFade = 1.0 - volumeFade * volumeFade;
 
-                vec3 lpv = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
-                float localDensity = 0.01 * volumeFade * smoothstep(0.005, 0.10, maxOf(lpv));
-                float fogStepTransmittance = exp(-localDensity * fogStepLength);
+                    vec3 lpv = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
+                    float localDensity = 0.01 * volumeFade * smoothstep(0.005, 0.10, maxOf(lpv));
+                    float fogStepTransmittance = exp(-localDensity * fogStepLength);
 
-                scatteredFog += fogTransmittance * (1.0 - fogStepTransmittance) * lpv * lpvFogIntensity;
-                fogTransmittance *= fogStepTransmittance;
+                    scatteredFog += fogTransmittance * (1.0 - fogStepTransmittance) * lpv * lpvFogIntensity;
+                    fogTransmittance *= fogStepTransmittance;
+                }
             }
         }
         fogSegmentStart = fogSegmentEnd;
