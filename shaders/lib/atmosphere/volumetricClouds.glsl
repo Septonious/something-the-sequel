@@ -197,7 +197,7 @@ float CloudShapeBase(
     float coverageNoise = coverageData.r + (coverageData.r - coverageData.g) * VC_CELLULAR_SHAPING * weather.cellularStrength;
           coverageNoise = CloudSaturate(coverageNoise);
 
-    float coverageBias = 0.50 - wetness * 0.30 - VC_CLOUD_COVERAGE * 0.75 - weather.coverageOffset;
+    float coverageBias = 0.50 - cloudRain * 0.45 - VC_CLOUD_COVERAGE * 0.75 - weather.coverageOffset;
     float coverage = ((coverageNoise - coverageBias) / max(1.0 - CloudSaturate(coverageBias), 1e-4)) - attenuation;
 
     if (coverage <= 0.0) return 0.0;
@@ -213,7 +213,7 @@ float CloudShapeBase(
     float liquidWater = fmix(0.14, 1.0, CloudStep(h, 0.12, 0.72));
     float topEntrainment = 1.0 - 0.38 * CloudStep(h, 0.74, 1.00);
 
-    densityFade = 4.0 * VC_CLOUD_DENSITY * baseGrowth * liquidWater * topEntrainment;
+    densityFade = 4.0 * VC_CLOUD_DENSITY * baseGrowth * liquidWater * topEntrainment * (1.0 + cloudRain);
 
     float shape = coverage;
     slope = sqrt(1.0 - CloudSaturate(shape));

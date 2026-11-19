@@ -49,6 +49,7 @@ uniform sampler2D noisetex;
 
 #if defined VOLUMETRIC_CLOUDS || defined CIRRUS_CLOUDS
 uniform sampler2D colortex8;
+uniform float cloudRain;
 #endif
 
 #ifdef SCREEN_SPACE_SHADOWS

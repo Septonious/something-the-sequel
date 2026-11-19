@@ -27,6 +27,9 @@ option.VC_CLOUD_BODY_SCALE.comment=Fraction of the cloud layer, counted from its
 option.VC_CLOUD_SPEED=Speed
 option.VC_WIND_ANGLE=Wind Direction
 option.VC_CLOUD_MAX_DISTANCE=Render Distance
+option.VC_RAIN_TRANSITION=Rain Transition
+option.VC_RAIN_TRANSITION.comment=Seconds the clouds take to get halfway between clear and rainy. Clearing up takes 1.5 times as long.
+suffix.VC_RAIN_TRANSITION=s
 
 screen.VC_SHAPE_CONFIG=Cloud Shape Config
 option.VC_COVERAGE_SCALE=Coverage Scale
