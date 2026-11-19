@@ -20,11 +20,13 @@ void getReflection(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, in vec3
 		 reflection.a *= border;
 
 	#ifdef WORLD_SPACE_REFLECTIONS
-	float reflectDepth = texture2D(depthtex1, reflectPos.xy).r;
-	vec3 reflectEnd = ToView(reflectPos.xyz);
-	float reflectBehind = ToView(vec3(reflectPos.xy, reflectDepth)).z - reflectEnd.z;
+	if (reflection.a > 0.0) {
+		float reflectDepth = texture2D(depthtex1, reflectPos.xy).r;
+		vec3 reflectEnd = ToView(reflectPos.xyz);
+		float reflectBehind = ToView(vec3(reflectPos.xy, reflectDepth)).z - reflectEnd.z;
 
-	reflection.a *= float(reflectDepth < 1.0 && reflectBehind > -0.25 && reflectBehind < 0.25 + 0.5 * length(reflectEnd - viewPos));
+		reflection.a *= float(reflectDepth < 1.0 && reflectBehind > -0.25 && reflectBehind < 0.25 + 0.5 * length(reflectEnd - viewPos));
+	}
 	#endif
 
 	#ifdef OVERWORLD
@@ -44,7 +46,6 @@ void getReflection(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, in vec3
 		float traceDistance = 0.0;
 
 		if (dot(worldReflection, surfaceNormal) > 0.0) {
-			giLeafPass = 0.0;
 			voxelReflection = voxelReflectionTrace(texture, worldToVoxel(worldPos) + surfaceNormal * 0.05, worldReflection, mat3(gbufferModelViewInverse) * lightVec, length(viewPos), traceDistance);
 		}
 
@@ -67,10 +68,12 @@ void getReflection(inout vec4 albedo, in vec3 worldPos, in vec3 viewPos, in vec3
 
 		#ifdef WORLD_SPACE_REFLECTIONS
 		if (voxelReflection.a > 0.5 && dot(worldReflection, surfaceNormal) > 0.0) {
-			vec3 farHit = farReflectionTrace(depthtex1, viewPos, viewReflection, max(traceDistance, 4.0), dither);
-			falloff = mix(falloff, pow8(texture2D(gaux1, farHit.xy).rgb) * 256.0, farHit.z);
+			bool farGeometry;
+			vec3 farHit = farReflectionTrace(depthtex1, viewPos, viewReflection, max(traceDistance, 4.0), dither, farGeometry);
 
-			if (farHit.z == 0.0 || texture2D(depthtex1, farHit.xy).r >= 1.0) {
+			if (farHit.z > 0.0) falloff = mix(falloff, pow8(texture2D(gaux1, farHit.xy).rgb) * 256.0, farHit.z);
+
+			if (farHit.z == 0.0 || !farGeometry) {
 				vec4 probeHit = farProbeTrace(worldPos, worldReflection, max(traceDistance, 4.0), dither);
 				falloff = mix(falloff, probeHit.rgb, probeHit.a);
 			}

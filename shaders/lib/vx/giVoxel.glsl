@@ -139,7 +139,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 		imageAtomicMax(voxel_sprite_img, ivec3(cell.x * 3 + (gl_Normal.y > 0.5 ? 0 : (gl_Normal.y < -0.5 ? 1 : 2)), cell.yz), sprite);
 	}
 
-	if (!plant && !giVoxelSeeThrough(word)) imageStore(voxel_sprite_img, ivec3(int(voxelVolumeSize.x) * 3 + (cell.x >> 2), cell.y >> 2, cell.z >> 2), uvec4(1u));
+	if (quadVertex == 0 || head) imageAtomicOr(voxel_sprite_img, ivec3(int(voxelVolumeSize.x) * 3 + (cell.x >> 2), cell.y >> 1, cell.z >> 2), 1u << uint((cell.x & 3) | ((cell.z & 3) << 2) | ((cell.y & 1) << 4)));
 	#endif
 
 	if ((word & 0xC4000000u) == 0x80000000u) {

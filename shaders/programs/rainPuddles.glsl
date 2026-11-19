@@ -132,11 +132,13 @@ void main() {
 		border = clamp(13.333 * (1.0 - border), 0.0, 1.0);
 
 		#ifdef WORLD_SPACE_REFLECTIONS
-		float reflectDepth = texture2D(depthtex0, reflectPos.xy).r;
-		vec3 reflectEnd = ToView(reflectPos.xyz);
-		float reflectBehind = ToView(vec3(reflectPos.xy, reflectDepth)).z - reflectEnd.z;
+		if (border > 0.0) {
+			float reflectDepth = texture2D(depthtex0, reflectPos.xy).r;
+			vec3 reflectEnd = ToView(reflectPos.xyz);
+			float reflectBehind = ToView(vec3(reflectPos.xy, reflectDepth)).z - reflectEnd.z;
 
-		border *= float(reflectDepth < 1.0 && reflectBehind > -0.25 && reflectBehind < 0.25 + 0.5 * length(reflectEnd - viewPos));
+			border *= float(reflectDepth < 1.0 && reflectBehind > -0.25 && reflectBehind < 0.25 + 0.5 * length(reflectEnd - viewPos));
+		}
 		#endif
 
 		vec3 reflectedViewPos = reflect(nViewPos, normal);
@@ -152,19 +154,18 @@ void main() {
 			uint hitWord;
 			vec3 voxelOrigin = worldToVoxel(worldPos) + vec3(0.0, 0.05, 0.0);
 
-			giLeafPass = 0.0;
-
 			if (voxelReflectionHit(voxelOrigin, worldReflection, hitCell, hitFace, traceDistance, hitWord)) {
 				vec2 screenUv;
 				float screenWeight = voxelHitScreen(depthtex0, voxelOrigin + worldReflection * traceDistance, hitFace, screenUv);
 
 				reflection = pow(giHitRadiance(hitCell, hitFace, voxelOrigin + worldReflection * traceDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec) + giPassLight, vec3(1.0 / 2.2)) * (1.0 - blindFactor);
-				reflection = mix(reflection, texture2D(colortex0, screenUv).rgb, screenWeight);
+				if (screenWeight > 0.0) reflection = mix(reflection, texture2D(colortex0, screenUv).rgb, screenWeight);
 			} else {
-				vec3 farHit = farReflectionTrace(depthtex0, viewPos, reflectedViewPos, max(traceDistance, 4.0), dither);
-				reflection = mix(reflection, texture2D(colortex0, farHit.xy).rgb, farHit.z);
+				bool farGeometry;
+				vec3 farHit = farReflectionTrace(depthtex0, viewPos, reflectedViewPos, max(traceDistance, 4.0), dither, farGeometry);
+				if (farHit.z > 0.0) reflection = mix(reflection, texture2D(colortex0, farHit.xy).rgb, farHit.z);
 
-				if (farHit.z == 0.0 || texture2D(depthtex0, farHit.xy).r >= 1.0) {
+				if (farHit.z == 0.0 || !farGeometry) {
 					vec4 probeHit = farProbeTrace(worldPos, worldReflection, max(traceDistance, 4.0), dither);
 					reflection = mix(reflection, probeHit.rgb, probeHit.a);
 				}

@@ -1,8 +1,10 @@
-vec3 farReflectionTrace(sampler2D depthSampler, vec3 origin, vec3 direction, float startDistance, float dither) {
+vec3 farReflectionTrace(sampler2D depthSampler, vec3 origin, vec3 direction, float startDistance, float dither, out bool geometry) {
 	float growth = pow(max(far * 1.5 / startDistance, 1.0), 1.0 / 12.0);
 	float lastDistance = startDistance;
 	float rayDistance = startDistance * pow(growth, dither);
 	vec3 skyHit = vec3(0.0);
+
+	geometry = false;
 
 	for (int i = 0; i < 12; i++) {
 		vec3 point = origin + direction * rayDistance;
@@ -34,6 +36,8 @@ vec3 farReflectionTrace(sampler2D depthSampler, vec3 origin, vec3 direction, flo
 
 			if (hitDepth > 0.56 && hitDepth < 1.0 && ToView(vec3(hitScreen.xy, hitDepth)).z - hitPoint.z < rayDistance - lastDistance) {
 				vec2 hitEdge = min(hitScreen.xy, 1.0 - hitScreen.xy);
+
+				geometry = true;
 
 				return vec3(hitScreen.xy, clamp(min(hitEdge.x, hitEdge.y) * 20.0, 0.0, 1.0));
 			}

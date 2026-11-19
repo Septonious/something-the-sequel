@@ -7,7 +7,9 @@ vec4 voxelReflectionTrace(sampler2D atlas, vec3 origin, vec3 direction, vec3 lig
 	vec3 hitPos = origin + direction * hitDistance;
 	vec2 screenUv;
 	float screenWeight = voxelHitScreen(depthtex1, hitPos, hitFace, screenUv);
-	vec3 screenColour = pow(pow8(texture2D(gaux1, screenUv).rgb) * 256.0, vec3(2.2));
+	vec3 screenColour = vec3(0.0);
+
+	if (screenWeight > 0.0) screenColour = pow(pow8(texture2D(gaux1, screenUv).rgb) * 256.0, vec3(2.2));
 
 	if (screenWeight >= 1.0) return vec4(screenColour, 0.0);
 
