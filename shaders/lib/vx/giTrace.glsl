@@ -80,7 +80,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 				vec4 passFloodfill = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, cell, 0) : texelFetch(floodfillSampler, cell, 0);
 
 				if (passFloodfill.a > 1.5 && (passFloodfill.a < 199.5 || passFloodfill.a > 216.5)) {
-					giPassLight += pow(passFloodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * (FLOODFILL_BRIGHTNESS * 0.14 * (min(side.x, min(side.y, side.z)) - hitDistance));
+					giPassLight += pow(passFloodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * (FLOODFILL_BRIGHTNESS * 0.28 * (min(side.x, min(side.y, side.z)) - hitDistance));
 					giPassCell = cell;
 				}
 
@@ -368,7 +368,7 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 	      vanillaDiffuse *= vanillaDiffuse;
 
 	vec4 floodfill = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, giHitOwner, 0) : texelFetch(floodfillSampler, giHitOwner, 0);
-	vec3 blockLight = floodfill.a > 1.5 && (floodfill.a < 199.5 || floodfill.a > 216.5) ? pow(floodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS * (giVoxelNonFull(hitWord) ? 5.0 : 1.0) : vec3(0.0);
+	vec3 blockLight = floodfill.a > 1.5 && (floodfill.a < 199.5 || floodfill.a > 216.5) ? pow(floodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * FLOODFILL_BRIGHTNESS * (giVoxelNonFull(hitWord) ? 10.0 : 2.0) : vec3(0.0);
 
 	vec4 cached = giCacheFetch(hitCell + hitFace);
 	vec3 ambient = cached.a < 0.0 ? vec3(0.0) : ambientCol * cached.a * clamp(skyLight * 8.0, 0.0, 1.0) + cached.rgb * GI_MULTI_BOUNCE;

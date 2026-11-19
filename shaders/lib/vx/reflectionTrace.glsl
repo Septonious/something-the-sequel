@@ -100,7 +100,7 @@ bool voxelReflectionHit(vec3 origin, vec3 direction, out ivec3 hitCell, out ivec
 			if (giVoxelSeeThrough(hitWord) || giVoxelPlant(hitWord)) {
 				vec4 passFloodfill = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, cell, 0) : texelFetch(floodfillSampler, cell, 0);
 
-				if (passFloodfill.a > 1.5 && (passFloodfill.a < 199.5 || passFloodfill.a > 216.5)) giPassLight += pow(passFloodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * (FLOODFILL_BRIGHTNESS * 0.14 * (min(side.x, min(side.y, side.z)) - hitDistance));
+				if (passFloodfill.a > 1.5 && (passFloodfill.a < 199.5 || passFloodfill.a > 216.5)) giPassLight += pow(passFloodfill.rgb, vec3(1.0 / FLOODFILL_RADIUS)) * (FLOODFILL_BRIGHTNESS * 0.28 * (min(side.x, min(side.y, side.z)) - hitDistance));
 
 				continue;
 			}
