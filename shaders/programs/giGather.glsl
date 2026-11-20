@@ -300,6 +300,14 @@ void main() {
             history /= historyWeight;
             historyGi /= historyWeight;
             historyFar /= historyWeight;
+
+            vec3 viewNormal = foliage ? vec3(0.0, 0.0, 1.0) : mat3(gbufferModelView) * worldNormal;
+            float range = length(viewPos);
+            float previousRange = length(previousView.xyz);
+            float tilt = max(abs(dot(viewNormal, viewPos)) / range, 0.02);
+            float previousTilt = max(abs(dot(previousNormal, previousView.xyz)) / previousRange, 0.02);
+
+            history.g *= min(range * range * previousTilt / (previousRange * previousRange * tilt), 1.0);
         } else {
             int seeds = clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2;
 
