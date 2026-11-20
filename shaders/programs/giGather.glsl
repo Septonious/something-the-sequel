@@ -82,6 +82,7 @@ uint giGuidePack(ivec3 cell, float weight, float dither) {
 }
 
 vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
+    #ifdef GI_SCREEN_TRACE
     vec2 viewScale = vec2(gbufferProjectionInverse[0].x, gbufferProjectionInverse[1].y);
     float reach = min(0.025 - viewPos.z * 0.0005, -viewPos.z * 0.015);
     float jitter = giRandom();
@@ -144,6 +145,7 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
             return vec4(radiance, length(toScene));
         }
     }
+    #endif
 
     return vec4(0.0, 0.0, 0.0, -1.0);
 }
