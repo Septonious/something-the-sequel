@@ -333,7 +333,17 @@ void main() {
                 vec3 seedDirection, seedLampDirection;
                 vec2 seedWeights = giLampedDirections(origin, worldNormal, seedDirection, seedLampDirection);
 
-                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection, giFade) * (seedWeights.x / float(seeds));
+                giPassLight = vec3(0.0);
+                giHitBlockLuminance = 0.0;
+
+                vec4 seedRadiance = giSceneRadiance(viewPos, worldNormal, origin, seedDirection, giFade) * (seedWeights.x / float(seeds));
+
+                if (seedWeights.x == 1.0 && giHitBlockLuminance + dot(giPassLight, luminance) > 0.0) {
+                    historyFar.rgb += seedRadiance.rgb / 31.0;
+                    seedRadiance.rgb = vec3(0.0);
+                }
+
+                historyGi += seedRadiance;
 
                 if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection, giFade) * (seedWeights.y / float(seeds));
             }
@@ -383,7 +393,7 @@ void main() {
         if (!reprojected) {
             vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, farSize - 1) + farRead);
 
-            if (nearFar.a > 8.0 && !any(isnan(nearFar))) historyFar.rgb = historyGi.rgb * clamp(dot(nearFar.rgb, luminance) / max(dot(texelFetch(colortex14, min(neighbourPixel, textureSize(colortex14, 0) - 1), 0).rgb, luminance), 0.000001), 0.0, 0.5);
+            if (nearFar.a > 8.0 && !any(isnan(nearFar))) historyFar.rgb += historyGi.rgb * clamp(dot(nearFar.rgb, luminance) / max(dot(texelFetch(colortex14, min(neighbourPixel, textureSize(colortex14, 0) - 1), 0).rgb, luminance), 0.000001), 0.0, 0.5);
         }
         float guideLuminance = uintBitsToFloat(guide.a);
         ivec3 slotCells[3];
