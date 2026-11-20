@@ -527,7 +527,7 @@ void main() {
         inverseHitDistance *= sampleWeight;
 
         float farLength = min(historyFar.a, accumulationLength * 8.0);
-        bool stray = hit && giHitBlockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
+        bool stray = blockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
         vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 31.0));
 
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(farLight, farLength + 1.0));
