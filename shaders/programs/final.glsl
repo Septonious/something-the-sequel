@@ -14,6 +14,17 @@ uniform float viewWidth, viewHeight;
 const bool shadowHardwareFiltering0 = true;
 const int noiseTextureResolution = 512;
 const float shadowDistanceRenderMul = 1.0;
+#if VOXEL_VOLUME_SIZE == 128
+const float voxelDistance = 64.0;
+#elif VOXEL_VOLUME_SIZE == 192
+const float voxelDistance = 96.0;
+#elif VOXEL_VOLUME_SIZE == 256
+const float voxelDistance = 128.0;
+#elif VOXEL_VOLUME_SIZE == 384
+const float voxelDistance = 192.0;
+#else
+const float voxelDistance = 256.0;
+#endif
 const float wetnessHalflife = 128.0;
 
 #ifdef GI
