@@ -312,8 +312,6 @@ void main() {
 			color = vec3(gi.a);
 			#elif GI_DEBUG == 9
 			color = pow(gi.rgb, vec3(1.0 / 2.2));
-			#elif GI_DEBUG == 10
-			color = vec3(giBlockVisibility);
 			#else
 			color = pow(max(pow(color, vec3(2.2)) + giReceptor * receptorWeight * giDelta + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance), vec3(0.0)), vec3(1.0 / 2.2));
 			#endif
