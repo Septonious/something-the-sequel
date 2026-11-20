@@ -284,6 +284,7 @@ void main() {
 			vec2 giBase = floor(giPos) - 1.0;
 			vec4 gi = vec4(0.0);
 			float giBlockLuminance = 0.0;
+			float giContact = 0.0;
 			float giWeight = 0.0;
 			int giPixelFace = giFace(giSurface.r > 0.5 ? vec3(0.0, 1.0, 0.0) : mat3(gbufferModelViewInverse) * giViewNormal(texCoord, viewPos));
 
@@ -295,10 +296,12 @@ void main() {
 				float weight = tent.x * tent.y / (0.01 + abs(abs(giTapSurface.r) + viewPos.z) / -viewPos.z) * (giStoredFace(giTapSurface) == giPixelFace ? 1.0 : 0.0001);
 				gi += texelFetch(colortex14, giTexel, 0) * weight;
 				giBlockLuminance += giTapSurface.b * weight;
+				giContact += abs(giTapSurface.a) * weight;
 				giWeight += weight;
 			}
 			gi /= giWeight;
 			giBlockLuminance /= giWeight;
+			giContact = 1.0 - 0.3 * smoothstep(0.3, 1.5, giContact / giWeight);
 
 			#if GI_DEBUG == 4
 			gi = vec4(0.0);
@@ -306,14 +309,14 @@ void main() {
 
 			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
 			float lightWeight = max(1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
-			vec3 giDelta = giAmbientDelta(gi, giSurface.g, viewPos);
+			vec3 giDelta = giAmbientDelta(gi * giContact, giSurface.g, viewPos);
 
 			#if GI_DEBUG == 8
 			color = vec3(gi.a);
 			#elif GI_DEBUG == 9
 			color = pow(gi.rgb, vec3(1.0 / 2.2));
 			#else
-			color = pow(max(pow(color, vec3(2.2)) + giReceptor * receptorWeight * giDelta + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance), vec3(0.0)), vec3(1.0 / 2.2));
+			color = pow(max(pow(color, vec3(2.2)) + giReceptor * receptorWeight * giDelta + giReceptor * (lightWeight - receptorWeight) * giBlockLight(gi, giBlockLuminance) * giContact, vec3(0.0)), vec3(1.0 / 2.2));
 			#endif
 		}
 		#endif

@@ -40,7 +40,7 @@ void main() {
         vec3 viewDirection = normalize(viewPos);
         vec3 tangent = normalize(cross(normal, viewDirection + vec3(0.0, 0.001, 0.0)));
         vec3 bitangent = cross(normal, tangent) * max(1.0, minRadius / (radius * max(abs(dot(normal, viewDirection)), 0.1)));
-        float blur = clamp(4.0 / max(abs(surface.g), 1.0), 0.05, 1.0) * GI_FILTER;
+        float blur = clamp(4.0 / max(abs(surface.g), 1.0), 0.05, 1.0) * mix(1.0, 0.25, smoothstep(16.0, 64.0, abs(surface.g))) * GI_FILTER;
         float blockLuminance = surface.b;
         float inverseHitDistance = abs(surface.a);
         float weightSum = 1.0;
