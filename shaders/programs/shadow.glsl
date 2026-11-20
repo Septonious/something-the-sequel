@@ -103,6 +103,14 @@ layout(r32ui) uniform uimage3D voxel_sprite_img;
 #endif
 #endif
 
+#ifndef VX_SUPPORT
+uniform int renderStage;
+#endif
+
+#ifndef GI
+uniform sampler2D tex;
+#endif
+
 #if defined WAVING_LEAVES || defined WAVING_PLANTS
 uniform float frameTimeCounter, rainStrength;
 
@@ -182,6 +190,8 @@ void main() {
 	#ifdef GI
 	if (renderStage == MC_RENDER_STAGE_ENTITIES && blockEntityId != 0) gl_Position = vec4(-10.0, -10.0, -10.0, 1.0);
 	#endif
+
+	if ((renderStage == MC_RENDER_STAGE_TERRAIN_SOLID || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED) && (gl_NormalMatrix * gl_Normal).z < -0.001 && textureQueryLevels(tex) > 4 && texture2DLod(tex, mc_midTexCoord.xy, 4.0).a > 0.999) gl_Position = vec4(-10.0, -10.0, -10.0, 1.0);
 }
 
 #endif
