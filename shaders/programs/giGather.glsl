@@ -320,6 +320,32 @@ void main() {
         ivec2 guidePixel = min(ivec2(gl_FragCoord.xy), guideSize - 1);
         ivec3 cellShift = ivec3(floor(previousCameraPosition) - floor(cameraPosition));
         uvec4 guide = reprojected ? imageLoad(gi_guide_img, min(ivec2(previousCoord * vec2(guideSize)), guideSize - 1)) : uvec4(0u);
+        float accumulationLength = clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75);
+
+        #if GI_RAY_RATE > 1
+        ivec2 rayTile = ivec2(gl_FragCoord.xy) >> 3;
+
+        #if GI_RAY_RATE == 2
+        bool rayTurn = ((rayTile.x + rayTile.y + frameCounter) & 1) == 0;
+        #else
+        bool rayTurn = (rayTile.x & 1) + (rayTile.y & 1) * 2 == (frameCounter & 3);
+        #endif
+
+        if (reprojected && !rayTurn && history.g > accumulationLength * 0.5) {
+            uvec4 keptGuide = uvec4(0u, 0u, 0u, guide.a);
+
+            for (int i = 0; i < 3; i++) keptGuide[i] = giGuidePack(giGuideCell(guide[i]) + cellShift, giGuideWeight(guide[i]), 0.5);
+
+            imageStore(gi_guide_img, guidePixel, inVolume ? keptGuide : uvec4(0u));
+            imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(historyFar.rgb, min(historyFar.a, accumulationLength * 8.0) + 1.0));
+
+            gl_FragData[0] = historyGi;
+            gl_FragData[1] = vec4(-viewPos.z, min(history.g, accumulationLength) + 1.0, max(history.b, 0.0), clamp(history.a, 1.0 / 32.25, 4.0)) * (1.0 - 2.0 * vec4(face & 1, (face >> 1) & 1, 0, face >> 2));
+
+            return;
+        }
+        #endif
+
         float offsetX = giRandom();
         float offsetY = giRandom();
         ivec2 neighbourPixel = clamp(guidePixel + ivec2((vec2(offsetX, offsetY) - 0.5) * (history.g > 24.0 ? 24.0 : 96.0)), ivec2(0), guideSize - 1);
@@ -471,7 +497,7 @@ void main() {
         blockLuminance *= sampleWeight;
         inverseHitDistance *= sampleWeight;
 
-        float farLength = min(historyFar.a, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75) * 8.0);
+        float farLength = min(historyFar.a, accumulationLength * 8.0);
         bool stray = hit && giHitBlockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
         vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 31.0));
 
@@ -487,7 +513,7 @@ void main() {
 
         float guideSample = insideBox ? radiance * sampleWeight : 0.0;
 
-        historyLength = clamp(history.g, 0.0, clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75));
+        historyLength = clamp(history.g, 0.0, accumulationLength);
         gi = mix(historyGi, gi, 1.0 / (historyLength + 1.0));
         blockLuminance = mix(max(history.b, 0.0), blockLuminance, 1.0 / (historyLength + 1.0));
         inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, 1.0 / (historyLength + 1.0));
