@@ -85,6 +85,10 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
     vec2 viewScale = vec2(gbufferProjectionInverse[0].x, gbufferProjectionInverse[1].y);
     float reach = min(0.025 - viewPos.z * 0.0005, -viewPos.z * 0.015);
     float jitter = giRandom();
+    bool found = false;
+    vec2 rayCoord = vec2(0.0);
+    vec3 scenePos = vec3(0.0);
+    vec3 toScene = vec3(0.0);
 
     for (int i = 0; i < 6; i++) {
         float travel = (float(i) + jitter) * (float(i) + jitter) * reach;
@@ -92,7 +96,7 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
 
         if (rayPos.z > -0.05) break;
 
-        vec2 rayCoord = rayPos.xy / (-rayPos.z * viewScale) * 0.5 + 0.5;
+        rayCoord = rayPos.xy / (-rayPos.z * viewScale) * 0.5 + 0.5;
 
         if (clamp(rayCoord, 0.0, 1.0) != rayCoord) break;
 
@@ -100,35 +104,45 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
 
         if (sceneDepth < 0.56 || sceneDepth >= 1.0) continue;
 
-        vec3 scenePos = ToView(vec3(rayCoord, sceneDepth));
-        vec3 toScene = scenePos - viewPos;
+        scenePos = ToView(vec3(rayCoord, sceneDepth));
+        toScene = scenePos - viewPos;
+
         float behind = scenePos.z - rayPos.z;
 
         if (dot(toScene, viewNormal) < 0.005 - viewPos.z * 0.002 || (dot(normalize(toScene), viewDirection) < 0.99 && (behind < 0.0 || behind > reach * 13.0))) continue;
 
+        found = true;
+
+        break;
+    }
+
+    if (found) {
         ivec3 sceneCell = ivec3(floor(worldToVoxel(ToWorld(scenePos + viewDirection * 0.02))));
+        bool lamp = false;
 
         if (all(greaterThanEqual(sceneCell, ivec3(0))) && all(lessThan(sceneCell, ivec3(voxelVolumeSize)))) {
             vec4 sceneLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, sceneCell, 0) : texelFetch(floodfillSampler, sceneCell, 0);
 
-            if (sceneLight.a > 1.5 && (sceneLight.a < 199.5 || sceneLight.a > 216.5) && maxOf(sceneLight.rgb) > 0.0) break;
+            lamp = sceneLight.a > 1.5 && (sceneLight.a < 199.5 || sceneLight.a > 216.5) && maxOf(sceneLight.rgb) > 0.0;
         }
 
-        vec4 previousView = gbufferPreviousModelView * vec4(ToWorld(scenePos) + cameraPosition - previousCameraPosition, 1.0);
-        vec4 previousClip = gbufferPreviousProjection * previousView;
-        vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5;
-        ivec2 previousTexel = min(ivec2(previousCoord * vec2(textureSize(colortex14, 0))), textureSize(colortex14, 0) - 1);
-        vec3 sceneSurface = texture2D(colortex11, rayCoord).rgb;
-        vec3 radiance = max(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) - texture2D(colortex10, rayCoord).rgb / (1.0 - sceneSurface.r * 0.35), vec3(0.0));
+        if (!lamp) {
+            vec4 previousView = gbufferPreviousModelView * vec4(ToWorld(scenePos) + cameraPosition - previousCameraPosition, 1.0);
+            vec4 previousClip = gbufferPreviousProjection * previousView;
+            vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5;
+            ivec2 previousTexel = min(ivec2(previousCoord * vec2(textureSize(colortex14, 0))), textureSize(colortex14, 0) - 1);
+            vec3 sceneSurface = texture2D(colortex11, rayCoord).rgb;
+            vec3 radiance = max(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) - texture2D(colortex10, rayCoord).rgb / (1.0 - sceneSurface.r * 0.35), vec3(0.0));
 
-        if (clamp(previousCoord, 0.0, 1.0) == previousCoord && abs(abs(texelFetch(colortex15, previousTexel, 0).r) + previousView.z) < 0.1 - previousView.z * 0.05) {
-            vec3 receptor = texture2D(colortex13, rayCoord).rgb;
-            vec4 previousGi = max(texelFetch(colortex14, previousTexel, 0), vec4(0.0));
+            if (clamp(previousCoord, 0.0, 1.0) == previousCoord && abs(abs(texelFetch(colortex15, previousTexel, 0).r) + previousView.z) < 0.1 - previousView.z * 0.05) {
+                vec3 receptor = texture2D(colortex13, rayCoord).rgb;
+                vec4 previousGi = max(texelFetch(colortex14, previousTexel, 0), vec4(0.0));
 
-            radiance += receptor * receptor * (previousGi.rgb * GI_MULTI_BOUNCE + ambientCol * (previousGi.a * clamp(sceneSurface.g * 8.0, 0.0, 1.0) * (1.0 - sceneSurface.b)));
+                radiance += receptor * receptor * (previousGi.rgb * GI_MULTI_BOUNCE + ambientCol * (previousGi.a * clamp(sceneSurface.g * 8.0, 0.0, 1.0) * (1.0 - sceneSurface.b)));
+            }
+
+            return vec4(radiance, length(toScene));
         }
-
-        return vec4(radiance, length(toScene));
     }
 
     return vec4(0.0, 0.0, 0.0, -1.0);
