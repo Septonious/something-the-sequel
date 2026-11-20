@@ -222,6 +222,9 @@ void main() {
     return;
     #endif
 
+    ivec2 farSize = imageSize(gi_far_img) / ivec2(1, 2);
+    ivec2 farWrite = ivec2(0, (frameCounter & 1) * farSize.y);
+    ivec2 farRead = ivec2(0, farSize.y) - farWrite;
     bool inVolume = isInsideVoxelVolume(voxelPos);
     bool traced = z0 > 0.56 && z0 < 1.0;
     float giFade = giVolumeFade(worldPos);
@@ -281,7 +284,7 @@ void main() {
 
                 if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= 0.005 - previousView.z * 0.002 || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
 
-                vec4 tapFar = imageLoad(gi_far_img, min(tap, imageSize(gi_far_img) - 1));
+                vec4 tapFar = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead);
 
                 history += abs(tapSurface) * weight;
                 historyGi += tapGi * weight;
@@ -337,7 +340,7 @@ void main() {
             for (int i = 0; i < 3; i++) keptGuide[i] = giGuidePack(giGuideCell(guide[i]) + cellShift, giGuideWeight(guide[i]), 0.5);
 
             imageStore(gi_guide_img, guidePixel, inVolume ? keptGuide : uvec4(0u));
-            imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(historyFar.rgb, min(historyFar.a, accumulationLength * 8.0) + 1.0));
+            imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(historyFar.rgb, min(historyFar.a, accumulationLength * 8.0) + 1.0));
 
             gl_FragData[0] = historyGi;
             gl_FragData[1] = vec4(-viewPos.z, min(history.g, accumulationLength) + 1.0, max(history.b, 0.0), clamp(history.a, 1.0 / 32.25, 4.0)) * (1.0 - 2.0 * vec4(face & 1, (face >> 1) & 1, 0, face >> 2));
@@ -352,7 +355,7 @@ void main() {
         uvec4 neighbour = imageLoad(gi_guide_img, neighbourPixel);
 
         if (!reprojected) {
-            vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, imageSize(gi_far_img) - 1));
+            vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, farSize - 1) + farRead);
 
             if (nearFar.a > 8.0 && !any(isnan(nearFar))) historyFar.rgb = historyGi.rgb * clamp(dot(nearFar.rgb, luminance) / max(dot(texelFetch(colortex14, min(neighbourPixel, textureSize(colortex14, 0) - 1), 0).rgb, luminance), 0.000001), 0.0, 0.5);
         }
@@ -501,7 +504,7 @@ void main() {
         bool stray = hit && giHitBlockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
         vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), 1.0 / (farLength + 31.0));
 
-        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(farLight, farLength + 1.0));
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(farLight, farLength + 1.0));
 
         if (stray) {
             gi.rgb = vec3(0.0);
@@ -528,7 +531,7 @@ void main() {
         historyLength += 1.0;
     } else {
         imageStore(gi_guide_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_guide_img) - 1), uvec4(0u));
-        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_far_img) - 1), vec4(0.0));
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(0.0));
     }
 
     /* RENDERTARGETS: 14,15 */
