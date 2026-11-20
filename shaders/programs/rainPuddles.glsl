@@ -10,6 +10,7 @@ uniform int frameCounter;
 uniform float far;
 uniform float frameTimeCounter, rainStrength;
 uniform float timeAngle, timeBrightness, wetness;
+uniform float isRainyBiome;
 uniform float blindFactor;
 #if MC_VERSION >= 11900
 uniform float darknessFactor;
@@ -110,8 +111,8 @@ vec2 getRainRipples(vec2 pos) {
 void main() {
 	ivec2 pixel = ivec2(gl_FragCoord.xy);
 	vec3 color = texelFetch(colortex0, pixel, 0).rgb;
-	float puddle = texelFetch(colortex7, pixel, 0).r;
-	float z0 = texelFetch(depthtex0, pixel, 0).r;
+	float puddle = wetness * isRainyBiome > 0.001 ? texelFetch(colortex7, pixel, 0).r : 0.0;
+	float z0 = puddle > 0.001 ? texelFetch(depthtex0, pixel, 0).r : 0.0;
 
 	if (puddle > 0.001 && z0 > 0.56) {
 		vec3 viewPos = ToView(vec3(texCoord, z0));
