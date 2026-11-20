@@ -262,7 +262,21 @@ void main() {
 	#ifdef WATER_REFLECTIONS
 	if (water > 0.5 || glass > 0.5) {
 		fresnel = pow3(fresnel);
-		getReflection(albedo, worldPos, viewPos, nViewPos, newNormal, fresnel * 0.85 + 0.15, lightmap.y);
+		float reflectionWeight = fresnel * 0.85 + 0.15;
+
+		if (water > 0.5 && isEyeInWater == 1) {
+			float cosTransmitted = sqrt(max(1.0 - 1.7689 * (1.0 - pow2(dot(newNormal, nViewPos))), 0.0));
+
+			fresnel = 0.02 + 0.98 * pow5(1.0 - cosTransmitted);
+			reflectionWeight = fresnel;
+
+			if (cosTransmitted > 0.0) albedo.rgb = getSnellWindow(worldPos, viewPos, nViewPos, newNormal, lightmap.y);
+
+			albedo.a = 1.0;
+			refraction = vec2(0.0);
+		}
+
+		getReflection(albedo, worldPos, viewPos, nViewPos, newNormal, reflectionWeight, lightmap.y);
 		albedo.a = mix(albedo.a, 1.0, fresnel);
 	}
 	#endif
