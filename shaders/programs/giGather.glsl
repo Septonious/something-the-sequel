@@ -262,6 +262,7 @@ void main() {
         vec4 historyFar = vec4(0.0);
         vec4 farSpread = vec4(0.0);
         float historyWeight = 0.0;
+        float historyTolerance = foliage ? 0.5 - previousView.z * 0.02 : 0.005 - previousView.z * 0.002;
 
         face = giFace(worldNormal);
 
@@ -283,7 +284,7 @@ void main() {
                 vec2 tapCoord = (vec2(tap) + 0.5) / vec2(historySize) - texCoord + coord;
                 vec3 tapPos = vec3((tapCoord * 2.0 - 1.0) * previousScale * abs(tapSurface.r), -abs(tapSurface.r));
 
-                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= 0.005 - previousView.z * 0.002 || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
+                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= historyTolerance || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
 
                 vec4 tapFar = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead);
 
@@ -303,7 +304,7 @@ void main() {
                 vec2 tapCoord = (vec2(tap) + 0.5) / vec2(historySize) - texCoord + coord;
                 vec3 tapPos = vec3((tapCoord * 2.0 - 1.0) * previousScale * abs(tapSurface.r), -abs(tapSurface.r));
 
-                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= 0.005 - previousView.z * 0.002 || any(isnan(tapSurface))) continue;
+                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= historyTolerance || any(isnan(tapSurface))) continue;
 
                 vec4 tapFar = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead);
 

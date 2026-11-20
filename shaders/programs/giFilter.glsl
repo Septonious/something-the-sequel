@@ -7,6 +7,7 @@ in vec2 texCoord;
 uniform int frameCounter;
 
 uniform sampler2D depthtex0;
+uniform sampler2D colortex11;
 uniform sampler2D colortex14;
 uniform sampler2D colortex15;
 uniform sampler2D noisetex;
@@ -34,6 +35,7 @@ void main() {
         vec2 giSize = vec2(textureSize(colortex14, 0));
         float pixelSize = -viewPos.z * viewScale.y * 2.0 / giSize.y;
         int face = giStoredFace(surface);
+        bool foliage = texture2D(colortex11, coord).r > 0.5;
         float minRadius = 1.7320508 * mix(3.0, 1.0, clamp(abs(surface.g) / 16.0, 0.0, 1.0)) * pixelSize;
         float radius = clamp(0.02 / clamp(abs(surface.a), 1.0 / 32.25, 4.0), minRadius, 16.0 * pixelSize);
         float rotation = fract(texture2D(noisetex, gl_FragCoord.xy / 512.0).b + 1.61803398875 * mod(float(frameCounter), 3600.0)) * 6.28318530718;
@@ -56,7 +58,8 @@ void main() {
             if (giStoredFace(tapSurface) != face || any(isnan(tapSurface)) || any(isinf(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
 
             vec3 tapPos = vec3(((tapCoord - texCoord + coord) * 2.0 - 1.0) * viewScale * abs(tapSurface.r), -abs(tapSurface.r));
-            float weight = clamp(1.0 - abs(dot(tapPos - viewPos, normal)) / (0.005 + abs(tapSurface.r) * 0.002), 0.0, 1.0) * blur;
+            float offset = foliage ? distance(tapPos, viewPos) / (0.5 + abs(tapSurface.r) * 0.02) : abs(dot(tapPos - viewPos, normal)) / (0.005 + abs(tapSurface.r) * 0.002);
+            float weight = clamp(1.0 - offset, 0.0, 1.0) * blur;
 
             gi += tapGi * weight;
             blockLuminance += tapSurface.b * weight;
