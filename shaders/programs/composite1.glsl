@@ -15,7 +15,14 @@ flat in float closedSpaceFactor;
 // Uniforms //
 uniform sampler2D colortex0;
 
-#if defined WATER_FOG || defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#ifdef REFRACTION
+uniform float aspectRatio;
+uniform sampler2D colortex7;
+uniform sampler2D depthtex1;
+uniform mat4 gbufferProjection;
+#endif
+
+#if defined WATER_FOG || defined VL || defined REFRACTION || (defined LPV_FOG && defined VX_SUPPORT)
 uniform sampler2D depthtex0;
 uniform int isEyeInWater;
 uniform float frameTimeCounter;
@@ -91,8 +98,12 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/util/transformMacros.glsl"
 #endif
 
-#if defined WATER_FOG || defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined WATER_FOG || defined VL || defined REFRACTION || (defined LPV_FOG && defined VX_SUPPORT)
 #include "/lib/util/ToView.glsl"
+#endif
+
+#ifdef REFRACTION
+#include "/lib/util/encode.glsl"
 #endif
 
 #ifdef WATER_FOG
@@ -122,7 +133,30 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 
 // Main //
 void main() {
-    vec3 color = texture2D(colortex0, texCoord).rgb;
+    vec2 sceneCoord = texCoord;
+
+    #ifdef REFRACTION
+    float refractionZ0 = texture2D(depthtex0, texCoord).r;
+
+    if (texture2D(depthtex1, texCoord).r > refractionZ0) {
+        vec3 distort = texture2D(colortex7, texCoord).rgb;
+
+        if (distort.xy != vec2(0.0)) {
+            vec3 refractionViewPos = ToView(vec3(texCoord, refractionZ0));
+            float fovScale = gbufferProjection[1][1] / 1.37;
+
+            distort = decodeNormal(distort.xy) * REFRACTION_STRENGTH * (1.0 + length(refractionViewPos.y) * float(isEyeInWater == 1));
+            distort.xy *= vec2(1.0 / aspectRatio, 1.0) * fovScale / max(length(refractionViewPos.xyz), 8.0);
+
+            vec2 newCoord = clamp(texCoord + distort.xy, 0.0, 1.0);
+            float distortMask = texture2D(colortex7, newCoord).b;
+
+            if (distortMask > 0.79 && distortMask < 0.81 && refractionZ0 > 0.56) sceneCoord = newCoord;
+        }
+    }
+    #endif
+
+    vec3 color = texture2D(colortex0, sceneCoord).rgb;
     #ifdef GI
          color = max(color, vec3(0.0));
     #endif
