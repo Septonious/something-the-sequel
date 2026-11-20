@@ -89,6 +89,8 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
           shadowVisibility = clamp(shadowVisibility, 0.0, 1.0);
           shadowVisibility = 1.0 - pow3(shadowVisibility);
 
+    float shadowRange = shadowVisibility;
+
           #ifdef OVERWORLD
           shadowVisibility *= caveFactor;
           #endif
@@ -104,7 +106,9 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     //Scene Lighting
     #ifndef NETHER
-    if (NoL > 0.0001 && shadowVisibility > 0.0) {
+    vec3 fakeShadow = getFakeShadow(lightmap.y);
+
+    if (NoL > 0.0001 && (shadowVisibility > 0.0 || shadowRange * fakeShadow.x > 0.0)) {
         float lightmapS = lightmap.y * lightmap.y * (3.0 - 2.0 * lightmap.y);
 
         vec3 worldPosM = worldPos;
@@ -160,9 +164,8 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
         shadow = computeShadow(shadowPos, offset, subsurface, lightmap.y, 1.0 - fade, shadowDepthGradient);
     }
     vec3 realShadow = shadow;
-    vec3 fakeShadow = getFakeShadow(lightmap.y);
 
-    shadow = mix(fakeShadow, shadow, vec3(shadowVisibility)) * clamp(NoL * 1.01 - 0.01, 0.0, 1.0);
+    shadow = min(mix(fakeShadow, shadow, vec3(shadowVisibility)), mix(fakeShadow, shadow, vec3(shadowRange))) * clamp(NoL * 1.01 - 0.01, 0.0, 1.0);
 
     #ifdef VC_SHADOWS
     #if defined OVERWORLD && defined VOLUMETRIC_CLOUDS && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES || defined GBUFFERS_TEXTURED || defined GBUFFERS_WATER)
