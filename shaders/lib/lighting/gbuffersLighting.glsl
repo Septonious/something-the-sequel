@@ -176,14 +176,19 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     #ifdef OVERWORLD
     float rainFactor = 1.0 - wetness * 0.5;
+    float skyLight = lightmap.y;
 
-    vec3 ambientLighting = ambientCol * lightmap.y * (1.0 - VoL * 0.5);
+    #ifdef GI
+    skyLight = mix(pow(skyLight, 4.5), skyLight, giVolumeFade(worldPos));
+    #endif
+
+    vec3 ambientLighting = ambientCol * skyLight * (1.0 - VoL * 0.5);
     vec3 sceneLighting = mix(ambientLighting, lightCol * (0.15 + lightmap.y * 0.85), shadow * rainFactor * shadowFade);
          sceneLighting *= 1.0 + sss * shadow;
     vec3 directSceneLighting = sceneLighting - ambientLighting;
 
     #ifdef GI
-    giSurface = vec2(vanillaDiffuse * lightmap.y, clamp(maxOf(shadow * rainFactor * shadowFade), 0.0, 1.0));
+    giSurface = vec2(vanillaDiffuse * skyLight, clamp(maxOf(shadow * rainFactor * shadowFade), 0.0, 1.0));
     #endif
     #elif defined END
     vec3 sceneLighting = mix(endAmbientCol, endLightCol, shadow) * 0.25;

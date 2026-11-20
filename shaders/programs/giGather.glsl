@@ -81,7 +81,7 @@ uint giGuidePack(ivec3 cell, float weight, float dither) {
     return uint(cell.x) | (uint(cell.y) << 8u) | (uint(cell.z) << 15u) | (uint(clamp(floor(log2(weight) * 8.0 + 256.0 + dither), 1.0, 511.0)) << 23u);
 }
 
-vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
+vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection, float fade) {
     #ifdef GI_SCREEN_TRACE
     vec2 viewScale = vec2(gbufferProjectionInverse[0].x, gbufferProjectionInverse[1].y);
     float reach = min(0.025 - viewPos.z * 0.0005, -viewPos.z * 0.015);
@@ -139,7 +139,7 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
                 vec3 receptor = texture2D(colortex13, rayCoord).rgb;
                 vec4 previousGi = max(texelFetch(colortex14, previousTexel, 0), vec4(0.0));
 
-                radiance += receptor * receptor * (previousGi.rgb * GI_MULTI_BOUNCE + ambientCol * (previousGi.a * clamp(sceneSurface.g * 8.0, 0.0, 1.0) * (1.0 - sceneSurface.b)));
+                radiance += receptor * receptor * (previousGi.rgb * GI_MULTI_BOUNCE + ambientCol * (previousGi.a * mix(sceneSurface.g, clamp(sceneSurface.g * 8.0, 0.0, 1.0), fade) * (1.0 - sceneSurface.b)));
             }
 
             return vec4(radiance, length(toScene));
@@ -150,10 +150,10 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection) {
     return vec4(0.0, 0.0, 0.0, -1.0);
 }
 
-vec4 giSceneRadiance(vec3 viewPos, vec3 worldNormal, vec3 origin, vec3 direction) {
-    vec4 screenHit = giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction);
+vec4 giSceneRadiance(vec3 viewPos, vec3 worldNormal, vec3 origin, vec3 direction, float fade) {
+    vec4 screenHit = giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction, fade);
 
-    return screenHit.a >= 0.0 ? vec4(screenHit.rgb, 0.0) : giTraceRadiance(origin, direction, mat3(gbufferModelViewInverse) * lightVec);
+    return screenHit.a >= 0.0 ? vec4(screenHit.rgb, 0.0) : mix(vec4(0.0, 0.0, 0.0, 1.0), giTraceRadiance(origin, direction, mat3(gbufferModelViewInverse) * lightVec), fade);
 }
 
 float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 high) {
@@ -222,7 +222,15 @@ void main() {
     return;
     #endif
 
-    if (z0 > 0.56 && z0 < 1.0 && isInsideVoxelVolume(voxelPos)) {
+    bool inVolume = isInsideVoxelVolume(voxelPos);
+    bool traced = z0 > 0.56 && z0 < 1.0;
+    float giFade = giVolumeFade(worldPos);
+
+    #ifndef GI_SCREEN_TRACE
+    traced = traced && inVolume;
+    #endif
+
+    if (traced) {
         vec3 worldNormal = mat3(gbufferModelViewInverse) * giViewNormal(coord, viewPos);
         bool foliage = texture2D(colortex11, coord).r > 0.5;
 
@@ -296,9 +304,9 @@ void main() {
                 vec3 seedDirection, seedLampDirection;
                 vec2 seedWeights = giLampedDirections(origin, worldNormal, seedDirection, seedLampDirection);
 
-                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection) * (seedWeights.x / float(seeds));
+                historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedDirection, giFade) * (seedWeights.x / float(seeds));
 
-                if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection) * (seedWeights.y / float(seeds));
+                if (seedWeights.y > 0.0) historyGi += giSceneRadiance(viewPos, worldNormal, origin, seedLampDirection, giFade) * (seedWeights.y / float(seeds));
             }
 
             if (any(isnan(historyGi)) || any(isinf(historyGi))) historyGi = vec4(0.0, 0.0, 0.0, 1.0);
@@ -358,7 +366,7 @@ void main() {
             boxTotal += boxWeights[i];
         }
 
-        if (boxTotal > 0.0) guideProbability = clamp(guideLuminance / max(dot(historyGi.rgb, luminance) * GI_STRENGTH + historyGi.a * dot(ambientCol, luminance), 0.000001), reprojected && history.g > 32.0 ? 0.015625 : 0.5, 0.5);
+        if (inVolume && boxTotal > 0.0) guideProbability = clamp(guideLuminance / max(dot(historyGi.rgb, luminance) * GI_STRENGTH + historyGi.a * dot(ambientCol, luminance), 0.000001), reprojected && history.g > 32.0 ? 0.015625 : 0.5, 0.5);
 
         vec3 direction = giCosineDirection(worldNormal, point);
         float sampleWeight = 1.0;
@@ -414,7 +422,7 @@ void main() {
         ivec3 hitCell, hitFace = ivec3(0);
         float hitDistance;
         uint hitWord;
-        vec4 screenHit = sampleWeight > 0.0 ? giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction) : vec4(0.0, 0.0, 0.0, -1.0);
+        vec4 screenHit = sampleWeight > 0.0 ? giScreenTrace(viewPos, mat3(gbufferModelView) * worldNormal, mat3(gbufferModelView) * direction, giFade) : vec4(0.0, 0.0, 0.0, -1.0);
         bool hit = screenHit.a >= 0.0;
 
         if (hit) {
@@ -423,11 +431,12 @@ void main() {
             inverseHitDistance = 1.0 / (hitDistance + 0.25);
         } else if (sampleWeight > 0.0 && giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
             hit = true;
-            gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec), 0.0);
-            blockLuminance = giHitBlockLuminance;
-            inverseHitDistance = 1.0 / (hitDistance + 0.25);
+            gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec) * giFade, 1.0 - giFade);
+            blockLuminance = giHitBlockLuminance * giFade;
+            inverseHitDistance = mix(1.0 / 32.25, 1.0 / (hitDistance + 0.25), giFade);
         }
 
+        giPassLight *= giFade;
         gi.rgb += giPassLight;
         blockLuminance += dot(giPassLight, luminance);
 
@@ -488,7 +497,7 @@ void main() {
 
         for (int i = 0; i < 3; i++) guideState[i] = giGuidePack(slotCells[i], slotWeights[i], giRandom());
 
-        imageStore(gi_guide_img, guidePixel, guideState);
+        imageStore(gi_guide_img, guidePixel, inVolume ? guideState : uvec4(0u));
 
         historyLength += 1.0;
     } else {

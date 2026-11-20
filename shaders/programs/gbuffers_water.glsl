@@ -211,12 +211,11 @@ void main() {
 
     #ifdef GI
     if (water < 0.5) {
-        float giFade = clamp(maxOf(abs(worldPos) / (vec3(VOXEL_VOLUME_SIZE, VOXEL_VOLUME_SIZE * 0.5, VOXEL_VOLUME_SIZE) * 0.5)), 0.0, 1.0);
-              giFade = 1.0 - giFade * giFade;
+        float giFade = giVolumeFade(worldPos);
 
         vec4 gi = texture2D(colortex14, screenPos.xy);
 
-        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * giFade * ((1.0 - giSurface.y) * giAmbientDelta(gi, giSurface.x, viewPos) + giSurface.y * giBlockLight(gi, texture2D(colortex15, screenPos.xy).b)), vec3(0.0)), vec3(1.0 / 2.2));
+        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * ((1.0 - giSurface.y) * giAmbientDelta(gi, giSurface.x, giFade, viewPos) + giSurface.y * giBlockLight(gi, texture2D(colortex15, screenPos.xy).b)), vec3(0.0)), vec3(1.0 / 2.2));
     }
     #endif
 

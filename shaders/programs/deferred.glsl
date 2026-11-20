@@ -270,14 +270,17 @@ void main() {
 		#ifdef GI
 		vec3 giReceptor = texture2D(colortex13, texCoord).rgb;
 		     giReceptor *= giReceptor;
-		float giFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
-		      giFade = 1.0 - giFade * giFade;
+		float giFade = giVolumeFade(worldPos);
 
 		#if GI_DEBUG == 7
-		if (texCoord.x > 0.5) giFade = 0.0;
+		if (texCoord.x > 0.5) giReceptor = vec3(0.0);
 		#endif
 
-		if (z0 > 0.56 && maxOf(giReceptor) > 0.0 && giFade > 0.0) {
+		#ifndef GI_SCREEN_TRACE
+		if (giFade <= 0.0) giReceptor = vec3(0.0);
+		#endif
+
+		if (z0 > 0.56 && maxOf(giReceptor) > 0.0) {
 			vec3 giSurface = texture2D(colortex11, texCoord).rgb;
 			vec2 giSize = vec2(textureSize(colortex14, 0));
 			vec2 giPos = (texCoord * vec2(textureSize(depthtex0, 0)) - (float(GI_RESOLUTION / 4) + 0.5)) / float(GI_RESOLUTION);
@@ -307,9 +310,9 @@ void main() {
 			gi = vec4(0.0);
 			#endif
 
-			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
-			float lightWeight = max(1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0) * giFade;
-			vec3 giDelta = giAmbientDelta(gi * giContact, giSurface.g, viewPos);
+			float receptorWeight = max(1.0 - giSurface.b * giScreenShadow - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0);
+			float lightWeight = max(1.0 - (1.0 - giSurface.r * 0.35) * giOcclusion, 0.0);
+			vec3 giDelta = giAmbientDelta(gi * giContact, giSurface.g, giFade, viewPos);
 
 			#if GI_DEBUG == 8
 			color = vec3(gi.a);

@@ -171,7 +171,7 @@ option.GI_MULTI_BOUNCE.comment=How much light keeps bouncing after the first bou
 option.GI_SKY_SHADOW=Sky Shadow
 option.GI_SKY_SHADOW.comment=How much traced sky occlusion replaces the old ambient light. Lower values keep interiors brighter.
 option.GI_SCREEN_TRACE=Screen Space Tracing
-option.GI_SCREEN_TRACE.comment=Rays test the screen for about one block before the voxel trace. Adds contact shadows and lets entities block and bounce light.
+option.GI_SCREEN_TRACE.comment=Rays test the screen for about one block before the voxel trace. Adds contact shadows, lets entities block and bounce light, and shades terrain beyond the voxel volume.
 
 screen.GI_QUALITY_CONFIG=GI Quality Config
 option.GI_RESOLUTION=Trace Resolution

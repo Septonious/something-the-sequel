@@ -439,6 +439,10 @@ const vec3 weatherCol = vec3(WEATHER_RR, WEATHER_RG, WEATHER_RB) / 255.0 * WEATH
 float minOf(vec3 v) { return min(min(v.x, v.y), v.z); }
 float maxOf(vec3 v) { return max(max(v.x, v.y), v.z); }
 
+float giVolumeFade(vec3 worldPos) {
+    return 1.0 - smoothstep(0.75, 1.0, maxOf(abs(worldPos) / (vec3(VOXEL_VOLUME_SIZE, VOXEL_VOLUME_SIZE * 0.5, VOXEL_VOLUME_SIZE) * 0.5)));
+}
+
 float fmix(float a, float b, float t) {
     t = min(max(t, 0.0), 1.0);
     return a + t * (b - a);

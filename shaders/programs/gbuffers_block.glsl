@@ -139,10 +139,9 @@ void main() {
         }
 
         if (giWeight > 0.01) {
-            float giFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
-                  giFade = 1.0 - giFade * giFade;
+            float giFade = giVolumeFade(worldPos);
 
-            albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * giFade * (1.0 - giSurface.y) * giAmbientDelta(gi / giWeight, giSurface.x, viewPos), vec3(0.0)), vec3(1.0 / 2.2));
+            albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * giFade * (1.0 - giSurface.y) * giAmbientDelta(gi / giWeight, giSurface.x, 1.0, viewPos), vec3(0.0)), vec3(1.0 / 2.2));
         }
     }
     #endif
