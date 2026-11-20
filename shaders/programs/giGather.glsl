@@ -260,6 +260,7 @@ void main() {
         vec4 history = vec4(0.0);
         vec4 historyGi = vec4(0.0);
         vec4 historyFar = vec4(0.0);
+        vec4 farSpread = vec4(0.0);
         float historyWeight = 0.0;
 
         face = giFace(worldNormal);
@@ -291,6 +292,22 @@ void main() {
                 historyWeight += weight;
 
                 if (!(any(isnan(tapFar)) || any(isinf(tapFar)))) historyFar += tapFar * weight;
+            }
+
+            float spreadAngle = giRandom() * 6.28318530718;
+
+            for (int i = 0; i < 8; i++) {
+                float angle = spreadAngle + float(i) * 2.39996323;
+                ivec2 tap = clamp(historyBase + ivec2(round(historyBlend + vec2(cos(angle), sin(angle)) * (sqrt((float(i) + 0.5) / 8.0) * 6.0))), ivec2(0), historySize - 1);
+                vec4 tapSurface = texelFetch(colortex15, tap, 0);
+                vec2 tapCoord = (vec2(tap) + 0.5) / vec2(historySize) - texCoord + coord;
+                vec3 tapPos = vec3((tapCoord * 2.0 - 1.0) * previousScale * abs(tapSurface.r), -abs(tapSurface.r));
+
+                if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= 0.005 - previousView.z * 0.002 || any(isnan(tapSurface))) continue;
+
+                vec4 tapFar = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead);
+
+                if (!(any(isnan(tapFar)) || any(isinf(tapFar)))) farSpread += vec4(tapFar.rgb, 1.0);
             }
         }
 
@@ -519,8 +536,10 @@ void main() {
             blockLuminance = 0.0;
         }
 
-        gi.rgb += farLight;
-        blockLuminance += dot(farLight, luminance);
+        vec3 farShown = (farLight + farSpread.rgb) / (1.0 + farSpread.a);
+
+        gi.rgb += farShown;
+        blockLuminance += dot(farShown, luminance);
 
         float guideSample = insideBox ? radiance * sampleWeight : 0.0;
 
