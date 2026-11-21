@@ -133,9 +133,9 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 		for (int j = 0; j < 128 && node != 0u; j++) {
 			uvec4 quad = texelFetch(quadPoolSampler, ivec3((node - 1u) & 63u, ((node - 1u) >> 6u) & 63u, (node - 1u) >> 12u), 0);
 
-			node = quad.a & 524287u;
+			node = quad.a & 2097151u;
 
-			uvec2 cutout = uvec2(quad.b, (quad.g >> 18u) | (((quad.r >> 21u) & 1023u) << 14u) | ((quad.a >> 19u) << 24u));
+			uvec2 cutout = uvec2(quad.b, (quad.g >> 18u) | (((quad.r >> 21u) & 1023u) << 14u) | ((quad.a >> 21u) << 24u));
 
 			if ((quad.r >> 31u) != 0u && cutout == uvec2(0xFFFFFFFFu) && ((frontFaces >> ((quad.r >> 18u) & 7u)) & 1u) == 0u) continue;
 

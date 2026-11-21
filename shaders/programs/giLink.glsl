@@ -2,7 +2,13 @@
 
 layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
+#if VOXEL_VOLUME_SIZE == 256
+const ivec3 workGroups = ivec3(16, 8, 16);
+#elif VOXEL_VOLUME_SIZE == 192
+const ivec3 workGroups = ivec3(16, 8, 8);
+#else
 const ivec3 workGroups = ivec3(16, 8, 4);
+#endif
 
 uniform usampler3D quadHashSampler;
 
@@ -74,7 +80,7 @@ void main() {
 		quad.r = uint(low.x) | (uint(low.y) << 6u) | (uint(low.z) << 12u) | (face << 18u) | (((cutout.y >> 14u) & 1023u) << 21u) | 0x80000000u;
 		quad.g = uint(high.x) | (uint(high.y) << 6u) | (uint(high.z) << 12u) | ((cutout.y & 16383u) << 18u);
 		quad.b = cutout.x;
-		quad.a |= (cutout.y >> 24u) << 19u;
+		quad.a |= (cutout.y >> 24u) << 21u;
 	}
 
 	imageStore(quad_pool_img, ivec3(index & 63u, (index >> 6u) & 63u, index >> 12u), quad);

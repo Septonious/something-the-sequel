@@ -25,6 +25,8 @@ vec3 giVoxelAlbedo(uint word) {
 }
 
 #if defined VSH && defined SHADOW
+const uint giQuadSlots = VOXEL_VOLUME_SIZE == 256 ? 1048576u : (VOXEL_VOLUME_SIZE == 192 ? 524288u : 262144u);
+
 uint giHash(uint value) {
 	value ^= value >> 16u;
 	value *= 0x7feb352du;
@@ -76,7 +78,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 		uint quadId = uint(gl_VertexID - quadVertex) + uint(renderStage) * 0x9e3779b9u;
 		uint keyA = giHash(quadId + giHash(cellIndex)) | 1u;
 		uint keyB = giHash(cellIndex + giHash(quadId ^ 0x85ebca6bu)) | 1u;
-		uint slot = keyA & 262143u;
+		uint slot = (keyA >> 1u) & (giQuadSlots - 1u);
 		uvec3 point = uvec3(clamp(floor((0.5 - midBlock / 64.0) * 32.0 + 0.5), 0.0, 32.0));
 		uint uvCorner = uint(gl_MultiTexCoord0.x > mc_midTexCoord.x) | (uint(gl_MultiTexCoord0.y > mc_midTexCoord.y) << 1u);
 		uint entry = point.x | (point.y << 6u) | (point.z << 12u) | ((quadVertex == 0 ? cellIndex & 16383u : (quadVertex == 1 ? (cellIndex >> 14u) | (uvCorner << 9u) : uvCorner)) << 18u);
@@ -113,7 +115,7 @@ void updateVoxelGi(int blockId, float skyLight) {
 				}
 			}
 
-			slot = (slot + 1u) & 262143u;
+			slot = (slot + 1u) & (giQuadSlots - 1u);
 		}
 	}
 
