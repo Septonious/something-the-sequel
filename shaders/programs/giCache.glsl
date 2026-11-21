@@ -89,23 +89,36 @@ bool giSolid(ivec3 cell) {
 	return word != 0u && !(giVoxelNonFull(word) || giVoxelSeeThrough(word) || giVoxelPlant(word) || giVoxelLeaves(word));
 }
 
-void main() {
-	#ifdef GI_CACHE_SURFACE
-	if (gl_GlobalInvocationID.x >= surfaceDispatch.w) return;
+uint giSolidFaces(ivec3 pos) {
+	uint solidFaces = 0u;
 
-	uvec2 job = surfaceCells[gl_GlobalInvocationID.x];
-	ivec3 pos = ivec3(job.x & 511u, (job.x >> 9u) & 511u, (job.x >> 18u) & 511u);
-	int face = int(job.x >> 27u);
+	for (int i = 0; i < 6; i++) {
+		ivec3 offset = ivec3(i == 0, i == 1, i == 2) - ivec3(i == 3, i == 4, i == 5);
 
-	giSeed = job.y;
-	#else
-	ivec3 pos = ivec3(gl_GlobalInvocationID);
+		uint neighbour = any(lessThan(pos + offset, ivec3(0))) || any(greaterThanEqual(pos + offset, ivec3(voxelVolumeSize))) ? 0u : texelFetch(voxelGiSampler, pos + offset, 0).r;
 
-	#ifdef GI_CACHE_TRACE
-	pos.x = pos.x * 4 + ((-(pos.y * 3 + pos.z * 5 + frameCounter)) & 3);
-	#endif
-	#endif
+		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) solidFaces |= 1u << uint(i);
+	}
 
+	return solidFaces;
+}
+
+bool giCacheDense(ivec3 pos) {
+	return all(lessThan(abs(vec3(pos) + 0.5 - voxelVolumeSize * 0.5), voxelVolumeSize * (0.5 * GI_CACHE_RANGE)));
+}
+
+int giNthFace(uint faces, int n) {
+	for (int i = 0; i < 6; i++) {
+		if ((faces & (1u << uint(i))) == 0u) continue;
+		if (n == 0) return i;
+
+		n--;
+	}
+
+	return 0;
+}
+
+void giCacheCell(ivec3 pos, int jobFace, bool fogTurn) {
 	vec4 cache = giCacheFetch(pos);
 
 	if (any(isnan(cache)) || any(isinf(cache))) cache = vec4(0.0, 0.0, 0.0, -1.0);
@@ -118,34 +131,15 @@ void main() {
 	giSeed = uint(pos.x) * 1973u + uint(pos.y) * 9277u + uint(pos.z) * 26699u + uint(frameCounter) * 4099u;
 	giRandom();
 
-	int face = -1;
-	uint solidFaces = 0u;
-
-	for (int i = 0; i < 6; i++) {
-		ivec3 offset = ivec3(i == 0, i == 1, i == 2) - ivec3(i == 3, i == 4, i == 5);
-
-		uint neighbour = any(lessThan(pos + offset, ivec3(0))) || any(greaterThanEqual(pos + offset, ivec3(voxelVolumeSize))) ? 0u : texelFetch(voxelGiSampler, pos + offset, 0).r;
-
-		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) solidFaces |= 1u << uint(i);
-	}
+	uint solidFaces = giSolidFaces(pos);
 
 	if (solidFaces != 0u) {
-		uint pick = ((uint(frameCounter) >> 2u) + uint(pos.x + pos.y * 3 + pos.z * 7)) % uint(bitCount(solidFaces));
-
-		for (int i = 0; i < 6; i++) {
-			if ((solidFaces & (1u << uint(i))) == 0u) continue;
-			if (pick == 0u) {
-				face = i;
-				break;
-			}
-			pick--;
-		}
-
+		uint pick = ((giCacheDense(pos) ? uint(frameCounter) : uint(frameCounter) >> 2u) + uint(pos.x + pos.y * 3 + pos.z * 7)) % uint(bitCount(solidFaces));
 		uint item = atomicAdd(surfaceDispatch.w, 1u);
 
 		if ((item & 63u) == 0u) atomicAdd(surfaceDispatch.x, 1u);
 
-		surfaceCells[item] = uvec2(uint(pos.x) | (uint(pos.y) << 9u) | (uint(pos.z) << 18u) | (uint(face) << 27u), giSeed);
+		surfaceCells[item] = uvec2(uint(pos.x) | (uint(pos.y) << 9u) | (uint(pos.z) << 18u) | (uint(giNthFace(solidFaces, int(pick))) << 27u) | (uint(fogTurn) << 30u), giSeed);
 
 		return;
 	}
@@ -154,22 +148,32 @@ void main() {
 	#endif
 
 	#ifdef GI_CACHE_SURFACE
-	vec3 normal = -vec3(ivec3(face == 0, face == 1, face == 2) - ivec3(face == 3, face == 4, face == 5));
-	vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
-	vec3 direction, lampDirection;
-	vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
-	vec4 current = giTraceRadiance(origin, direction, lightDirection) * weights.x;
+	bool dense = giCacheDense(pos);
+	uint solidFaces = dense ? giSolidFaces(pos) | (1u << uint(jobFace)) : 1u << uint(jobFace);
+	int firstFace = bitCount(solidFaces & ((1u << uint(jobFace)) - 1u));
+	int pairs = dense ? 4 : 1;
+	vec4 current = vec4(0.0);
 
-	if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
+	for (int i = 0; i < pairs; i++) {
+		int face = giNthFace(solidFaces, (firstFace + i) % bitCount(solidFaces));
+		vec3 normal = -vec3(ivec3(face == 0, face == 1, face == 2) - ivec3(face == 3, face == 4, face == 5));
+		vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
+		vec3 direction, lampDirection;
+		vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
 
-	cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
+		current += giTraceRadiance(origin, direction, lightDirection) * weights.x;
+
+		if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
+	}
+
+	cache = cache.a < 0.0 ? current / float(pairs) : mix(cache, current / float(pairs), dense ? 0.0625 : 0.03125);
 	#endif
 
 	#if defined GI_CACHE_TRACE || defined GI_CACHE_SURFACE
 	#ifdef LPV_FOG
 	vec3 fogLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, pos, 0).rgb : texelFetch(floodfillSampler, pos, 0).rgb;
 
-	if (maxOf(fogLight) > 0.0001) {
+	if (fogTurn && maxOf(fogLight) > 0.0001) {
 		float offsetX = giRandom();
 		float offsetY = giRandom();
 		float offsetZ = giRandom();
@@ -189,4 +193,26 @@ void main() {
 	} else {
 		imageStore(gi_cache_img, pos, cache);
 	}
+}
+
+void main() {
+	#ifdef GI_CACHE_SURFACE
+	if (gl_GlobalInvocationID.x >= surfaceDispatch.w) return;
+
+	uvec2 job = surfaceCells[gl_GlobalInvocationID.x];
+
+	giSeed = job.y;
+	giCacheCell(ivec3(job.x & 511u, (job.x >> 9u) & 511u, (job.x >> 18u) & 511u), int((job.x >> 27u) & 7u), ((job.x >> 30u) & 1u) != 0u);
+	#elif defined GI_CACHE_TRACE
+	ivec3 base = ivec3(gl_GlobalInvocationID);
+	int phase = (-(base.y * 3 + base.z * 5 + frameCounter)) & 3;
+
+	for (int i = 0; i < 4; i++) {
+		ivec3 pos = ivec3(base.x * 4 + i, base.yz);
+
+		if (i == phase || giCacheDense(pos)) giCacheCell(pos, -1, i == phase);
+	}
+	#else
+	giCacheCell(ivec3(gl_GlobalInvocationID), -1, true);
+	#endif
 }
