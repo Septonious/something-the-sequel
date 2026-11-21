@@ -15,6 +15,9 @@ uniform sampler2D colortex2;
 uniform sampler2D depthtex1;
 
 #ifdef TAA
+uniform sampler2D colortex7;
+uniform sampler2D depthtex0;
+
 uniform vec3 cameraPosition, previousCameraPosition;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferPreviousProjection;
@@ -40,6 +43,9 @@ void main() {
 
     #ifdef TAA
     float depth = texture2D(depthtex1, texCoord).r;
+    float depth0 = texture2D(depthtex0, texCoord).r;
+
+    if (depth0 > 0.56 && texture2D(colortex7, texCoord).b < 0.2) depth = depth0;
 
     temporalHistory = TemporalAA(color, 0.0, depth);
     color = temporalHistory.gba;

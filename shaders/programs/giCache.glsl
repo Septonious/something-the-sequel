@@ -119,21 +119,28 @@ void main() {
 	giRandom();
 
 	int face = -1;
-	float faces = 0.0;
+	uint solidFaces = 0u;
 
 	for (int i = 0; i < 6; i++) {
 		ivec3 offset = ivec3(i == 0, i == 1, i == 2) - ivec3(i == 3, i == 4, i == 5);
 
 		uint neighbour = any(lessThan(pos + offset, ivec3(0))) || any(greaterThanEqual(pos + offset, ivec3(voxelVolumeSize))) ? 0u : texelFetch(voxelGiSampler, pos + offset, 0).r;
 
-		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) {
-			faces += 1.0;
-
-			if (giRandom() * faces < 1.0) face = i;
-		}
+		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) solidFaces |= 1u << uint(i);
 	}
 
-	if (faces > 0.0) {
+	if (solidFaces != 0u) {
+		uint pick = ((uint(frameCounter) >> 2u) + uint(pos.x + pos.y * 3 + pos.z * 7)) % uint(bitCount(solidFaces));
+
+		for (int i = 0; i < 6; i++) {
+			if ((solidFaces & (1u << uint(i))) == 0u) continue;
+			if (pick == 0u) {
+				face = i;
+				break;
+			}
+			pick--;
+		}
+
 		uint item = atomicAdd(surfaceDispatch.w, 1u);
 
 		if ((item & 63u) == 0u) atomicAdd(surfaceDispatch.x, 1u);
