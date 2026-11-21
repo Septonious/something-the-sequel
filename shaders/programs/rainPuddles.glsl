@@ -161,7 +161,7 @@ void main() {
 				vec2 screenUv;
 				float screenWeight = voxelHitScreen(depthtex0, voxelOrigin + worldReflection * traceDistance, hitFace, screenUv);
 
-				reflection = pow(giHitRadiance(hitCell, hitFace, voxelOrigin + worldReflection * traceDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec) + giPassLight, vec3(1.0 / 2.2)) * (1.0 - blindFactor);
+				reflection = pow(giHitRadiance(hitCell, hitFace, voxelOrigin + worldReflection * traceDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec, 1.0) + giPassLight, vec3(1.0 / 2.2)) * (1.0 - blindFactor);
 
 				if (screenWeight < 1.0) {
 					vec3 hitWorldPos = voxelToWorld(voxelOrigin + worldReflection * traceDistance);

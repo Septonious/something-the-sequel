@@ -163,7 +163,7 @@ vec4 giScreenTrace(vec3 viewPos, vec3 viewNormal, vec3 viewDirection, float fade
             vec2 previousCoord = previousClip.xy / previousClip.w * 0.5 + 0.5;
             ivec2 previousTexel = min(ivec2(previousCoord * vec2(textureSize(colortex14, 0))), textureSize(colortex14, 0) - 1);
             vec3 sceneSurface = texture2D(colortex11, rayCoord).rgb;
-            vec3 radiance = max(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) - texture2D(colortex10, rayCoord).rgb / (1.0 - sceneSurface.r * 0.35), vec3(0.0));
+            vec3 radiance = max(pow(max(texture2D(colortex0, rayCoord).rgb, vec3(0.0)), vec3(2.2)) - texture2D(colortex10, rayCoord).rgb / (1.0 - sceneSurface.r * 0.35), vec3(0.0)) * (sceneSurface.b > 0.0 ? GI_SUN_BOUNCE : 1.0);
 
             if (clamp(previousCoord, 0.0, 1.0) == previousCoord && abs(abs(texelFetch(colortex15, previousTexel, 0).r) + previousView.z) < 0.1 - previousView.z * 0.05) {
                 vec3 receptor = texture2D(colortex13, rayCoord).rgb;
@@ -690,7 +690,7 @@ void main() {
             inverseHitDistance = 1.0 / (hitDistance + 0.25);
         } else if (sampleWeight > 0.0 && giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) {
             hit = true;
-            gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec) * giFade, 1.0 - giFade);
+            gi = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec, GI_SUN_BOUNCE) * giFade, 1.0 - giFade);
             blockLuminance = giHitBlockLuminance * giFade;
             inverseHitDistance = mix(1.0 / 32.25, 1.0 / (hitDistance + 0.25), giFade);
         }

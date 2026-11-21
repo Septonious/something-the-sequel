@@ -41,7 +41,7 @@ vec4 voxelReflectionTrace(sampler2D atlas, vec3 origin, vec3 direction, vec3 lig
 		albedo = pow(colour, vec3(2.2));
 	}
 
-	vec3 shaded = pow(giHitRadiance(hitCell, hitFace, hitPos, hitWord | 0x1FFFFFu, lightDirection) * albedo + giPassLight, vec3(1.0 / 2.2));
+	vec3 shaded = pow(giHitRadiance(hitCell, hitFace, hitPos, hitWord | 0x1FFFFFu, lightDirection, 1.0) * albedo + giPassLight, vec3(1.0 / 2.2));
 	vec3 hitWorldPos = voxelToWorld(hitPos);
 	vec3 hitViewPos = mat3(gbufferModelView) * hitWorldPos + gbufferModelView[3].xyz;
 	float hitHardMixFactor = 0.0;

@@ -352,7 +352,7 @@ vec2 giLampDensity(vec3 origin, vec3 normal, vec3 directionA, vec3 directionB, i
 	return density;
 }
 
-vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3 lightDirection) {
+vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3 lightDirection, float sunBounce) {
 	vec3 faceNormal = vec3(hitFace);
 	float skyLight = giVoxelSkyLight(hitWord);
 
@@ -372,7 +372,7 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 
 	vec4 cached = giCacheFetch(hitCell + hitFace);
 	vec3 ambient = cached.a < 0.0 ? vec3(0.0) : ambientCol * cached.a * clamp(skyLight * 8.0, 0.0, 1.0) + cached.rgb * GI_MULTI_BOUNCE;
-	vec3 lighting = mix(ambient, lightCol * (0.15 + skyLight * 0.85), sunLight) + blockLight;
+	vec3 lighting = mix(ambient, lightCol * (0.15 + skyLight * 0.85) * sunBounce, sunLight) + blockLight;
 	vec3 surface = giVoxelAlbedo(hitWord) * vanillaDiffuse;
 
 	giHitBlockLuminance = dot(surface * blockLight, vec3(0.2126, 0.7152, 0.0722));
@@ -386,7 +386,7 @@ vec4 giTraceRadiance(vec3 origin, vec3 direction, vec3 lightDirection) {
 	float hitDistance;
 	uint hitWord;
 
-	if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) radiance = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, lightDirection), 0.0);
+	if (giTrace(origin, direction, ivec3(-1), hitCell, hitFace, hitDistance, hitWord)) radiance = vec4(giHitRadiance(hitCell, hitFace, origin + direction * hitDistance, hitWord, lightDirection, GI_SUN_BOUNCE), 0.0);
 
 	radiance.rgb += giPassLight;
 
