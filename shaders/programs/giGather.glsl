@@ -186,6 +186,14 @@ vec4 giSceneRadiance(vec3 viewPos, vec3 worldNormal, vec3 origin, vec3 direction
     return screenHit.a >= 0.0 ? vec4(screenHit.rgb, 0.0) : mix(vec4(0.0, 0.0, 0.0, 1.0), giTraceRadiance(origin, direction, mat3(gbufferModelViewInverse) * lightVec), fade);
 }
 
+vec3 giGuideFaces(vec3 origin, vec3 low, vec3 high) {
+    vec3 side = (low + high) * 0.5 - origin;
+    vec3 gap = max(low - origin, 0.0) + max(origin - high, 0.0);
+    vec3 range = gap * gap + dot(side, side) - side * side;
+
+    return gap / max(range * sqrt(range), 0.000001);
+}
+
 float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 high) {
     low = vec3(cell);
     high = low + 1.0;
@@ -205,10 +213,10 @@ float giGuideBox(ivec3 cell, vec3 origin, vec3 normal, out vec3 low, out vec3 hi
 
     if (dot(normal, (low + high) * 0.5 - origin) + dot(abs(normal), extent) * 0.5 <= 0.0) return 0.0;
 
-    return dot(vec3(lessThan(origin, low)) + vec3(greaterThan(origin, high)), extent.yzx * extent.zxy);
+    return dot(giGuideFaces(origin, low, high), extent.yzx * extent.zxy);
 }
 
-float giGuideDensity(vec3 origin, vec3 direction, vec3 low, vec3 high, float area) {
+float giGuideDensity(vec3 origin, vec3 direction, vec3 low, vec3 high, float total) {
     vec3 slope = direction + vec3(lessThan(abs(direction), vec3(0.000001))) * 0.000002;
     vec3 planeA = (low - origin) / slope;
     vec3 planeB = (high - origin) / slope;
@@ -218,9 +226,9 @@ float giGuideDensity(vec3 origin, vec3 direction, vec3 low, vec3 high, float are
 
     if (reach <= 0.0 || reach > min(leave.x, min(leave.y, leave.z))) return 0.0;
 
-    float facing = reach == enter.x ? abs(direction.x) : (reach == enter.y ? abs(direction.y) : abs(direction.z));
+    int axis = reach == enter.x ? 0 : (reach == enter.y ? 1 : 2);
 
-    return reach * reach / (max(facing, 0.000001) * area);
+    return reach * reach * giGuideFaces(origin, low, high)[axis] / (max(abs(direction[axis]), 0.000001) * total);
 }
 
 void main() {
@@ -606,14 +614,14 @@ void main() {
 
         vec3 boxLow[3];
         vec3 boxHigh[3];
-        float boxAreas[3];
+        float boxTotals[3];
         float boxWeights[3];
         float boxTotal = 0.0;
         float guideProbability = 0.0;
 
         for (int i = 0; i < 3; i++) {
-            boxAreas[i] = giGuideBox(slotCells[i], origin, worldNormal, boxLow[i], boxHigh[i]);
-            boxWeights[i] = slotWeights[i] > 0.0 && boxAreas[i] > 0.0 ? slotWeights[i] : 0.0;
+            boxTotals[i] = giGuideBox(slotCells[i], origin, worldNormal, boxLow[i], boxHigh[i]);
+            boxWeights[i] = slotWeights[i] > 0.0 && boxTotals[i] > 0.0 ? slotWeights[i] : 0.0;
             boxTotal += boxWeights[i];
         }
 
@@ -641,12 +649,13 @@ void main() {
                 }
 
                 vec3 extent = boxHigh[chosen] - boxLow[chosen];
-                vec3 faceAreas = (vec3(lessThan(origin, boxLow[chosen])) + vec3(greaterThan(origin, boxHigh[chosen]))) * extent.yzx * extent.zxy;
-                float facePick = giRandom() * boxAreas[chosen];
-                int axis = faceAreas.z > 0.0 ? 2 : (faceAreas.y > 0.0 ? 1 : 0);
+                vec3 faceShares = giGuideFaces(origin, boxLow[chosen], boxHigh[chosen]);
+                vec3 faceWeights = faceShares * extent.yzx * extent.zxy;
+                float facePick = giRandom() * boxTotals[chosen];
+                int axis = faceWeights.z > 0.0 ? 2 : (faceWeights.y > 0.0 ? 1 : 0);
 
-                if (facePick < faceAreas.x + faceAreas.y && faceAreas.y > 0.0) axis = 1;
-                if (facePick < faceAreas.x) axis = 0;
+                if (facePick < faceWeights.x + faceWeights.y && faceWeights.y > 0.0) axis = 1;
+                if (facePick < faceWeights.x) axis = 0;
 
                 vec3 target = boxLow[chosen] + extent * (axis == 0 ? vec3(0.0, point) : (axis == 1 ? vec3(point.x, 0.0, point.y) : vec3(point, 0.0)));
 
@@ -655,7 +664,7 @@ void main() {
                 vec3 toTarget = target - origin;
 
                 direction = normalize(toTarget);
-                chosenDensity = dot(toTarget, toTarget) / (max(abs(direction[axis]), 0.000001) * boxAreas[chosen]);
+                chosenDensity = dot(toTarget, toTarget) * faceShares[axis] / (max(abs(direction[axis]), 0.000001) * boxTotals[chosen]);
             }
 
             float facing = max(dot(worldNormal, direction), 0.0);
@@ -663,7 +672,7 @@ void main() {
             float boxDensity = 0.0;
 
             for (int i = 0; i < 3; i++) {
-                if (boxWeights[i] > 0.0) boxDensity += boxWeights[i] * (i == chosen ? chosenDensity : giGuideDensity(origin, direction, boxLow[i], boxHigh[i], boxAreas[i]));
+                if (boxWeights[i] > 0.0) boxDensity += boxWeights[i] * (i == chosen ? chosenDensity : giGuideDensity(origin, direction, boxLow[i], boxHigh[i], boxTotals[i]));
             }
 
             insideBox = boxDensity > 0.0;
