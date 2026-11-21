@@ -508,11 +508,13 @@ void main() {
             giHitBlockLuminance = 0.0;
         }
 
-        ivec2 guideSize = imageSize(gi_guide_img);
+        ivec2 guideSize = imageSize(gi_guide_img) / ivec2(1, 2);
+        ivec2 guideWrite = ivec2(0, (frameCounter & 1) * guideSize.y);
+        ivec2 guideRead = ivec2(0, guideSize.y) - guideWrite;
         ivec2 guidePixel = min(ivec2(gl_FragCoord.xy), guideSize - 1);
         ivec3 cellShift = ivec3(floor(previousCameraPosition) - floor(cameraPosition));
         ivec2 guidePrevious = min(ivec2(previousCoord * vec2(guideSize)), guideSize - 1);
-        uvec4 guide = reprojected ? imageLoad(gi_guide_img, guidePrevious) : uvec4(0u);
+        uvec4 guide = reprojected ? imageLoad(gi_guide_img, guidePrevious + guideRead) : uvec4(0u);
         float accumulationLength = clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75);
 
         if (reprojected) {
@@ -593,7 +595,7 @@ void main() {
                 if (inVolume && keptGuide[i] != 0u && giCellEmits(giGuideCell(keptGuide[i]))) keptGuide.a |= 1u << uint(i);
             }
 
-            imageStore(gi_guide_img, guidePixel, inVolume ? keptGuide : uvec4(0u));
+            imageStore(gi_guide_img, guidePixel + guideWrite, inVolume ? keptGuide : uvec4(0u));
             imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(historyFar.rgb, min(historyFar.a, accumulationLength * 8.0) + 1.0));
             imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, historyTrack.a >= 0.0 ? vec4(historyTrack.r, 0.0, 0.0, historyTrack.a) : vec4(floodNow, 0.0, 0.0, floodNow >= 0.0 ? 1.0 : -1.0));
 
@@ -693,7 +695,7 @@ void main() {
 
         float offsetY = giRandom();
         ivec2 neighbourPixel = clamp(guidePixel + ivec2((vec2(offsetX, offsetY) - 0.5) * (history.g > 24.0 ? 24.0 : 96.0)), ivec2(0), guideSize - 1);
-        uvec4 neighbour = imageLoad(gi_guide_img, neighbourPixel);
+        uvec4 neighbour = imageLoad(gi_guide_img, neighbourPixel + guideRead);
 
         if (!reprojected) {
             vec4 nearFar = imageLoad(gi_far_img, min(neighbourPixel, farSize - 1) + farRead);
@@ -946,7 +948,7 @@ void main() {
             if (inVolume && guideState[i] != 0u && giCellEmits(giGuideCell(guideState[i]))) guideState.a |= 1u << uint(i);
         }
 
-        imageStore(gi_guide_img, guidePixel, inVolume ? guideState : uvec4(0u));
+        imageStore(gi_guide_img, guidePixel + guideWrite, inVolume ? guideState : uvec4(0u));
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, trackState);
 
         #ifdef GI_REUSE
@@ -958,7 +960,7 @@ void main() {
 
         historyLength = clamp(history.g, 0.0, historyCap) + 1.0;
     } else {
-        imageStore(gi_guide_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_guide_img) - 1), uvec4(0u));
+        imageStore(gi_guide_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_guide_img) / ivec2(1, 2) - 1) + ivec2(0, (frameCounter & 1) * (imageSize(gi_guide_img).y / 2)), uvec4(0u));
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(0.0));
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, vec4(0.0, 0.0, 0.0, -1.0));
 
