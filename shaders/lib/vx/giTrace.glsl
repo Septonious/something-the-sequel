@@ -49,7 +49,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 	for (int walks = 0; walks < giTraceSteps; walks++) {
 		bool walk = false;
 
-		for (; i < giTraceSteps; i++) {
+		for (; i < giTraceSteps * 2; i++) {
 			if (i == 0) {
 			} else if (side.x < side.y && side.x < side.z) {
 				hitDistance = side.x;
@@ -68,7 +68,7 @@ bool giTrace(vec3 origin, vec3 direction, ivec3 targetCell, out ivec3 hitCell, o
 				hitFace = ivec3(0, 0, -cellStep.z);
 			}
 
-			if (cell == targetCell || any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return false;
+			if (cell == targetCell || hitDistance > float(giTraceSteps) || any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return false;
 
 			hitWord = texelFetch(voxelGiSampler, cell, 0).r;
 
