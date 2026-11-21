@@ -356,7 +356,9 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 	vec3 faceNormal = vec3(hitFace);
 	float skyLight = giVoxelSkyLight(hitWord);
 
-	vec3 shadowPos = ToShadow(voxelToWorld(hitPos) + faceNormal * 0.2);
+	vec3 hitWorld = voxelToWorld(hitPos);
+	vec3 shadowClip = projMAD(shadowProjection, mat3(shadowModelView) * hitWorld + shadowModelView[3].xyz);
+	vec3 shadowPos = ToShadow(hitWorld + faceNormal * (2.0 * shadowDistance / float(shadowMapResolution) * (length(shadowClip.xy) * shadowMapBias + (1.0 - shadowMapBias))));
 	     shadowPos.z -= 0.0512 / float(shadowMapResolution) + 2.0 / 65536.0;
 	float sunLight = pow32(skyLight * skyLight);
 
