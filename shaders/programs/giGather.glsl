@@ -81,6 +81,41 @@ uint giGuidePack(ivec3 cell, float weight, float dither) {
     return uint(cell.x) | (uint(cell.y) << 8u) | (uint(cell.z) << 15u) | (uint(clamp(floor(log2(weight) * 8.0 + 256.0 + dither), 1.0, 511.0)) << 23u);
 }
 
+const float giFloodBand = 0.8;
+const float giFloodFloor = 0.00001;
+
+float giFloodfillNearby(vec3 position) {
+    vec3 base = floor(position - 0.5);
+    vec3 blend = position - 0.5 - base;
+    float total = 0.0;
+    float weight = 0.0;
+
+    for (int i = 0; i < 8; i++) {
+        ivec3 offset = ivec3(i & 1, (i >> 1) & 1, i >> 2);
+        ivec3 cell = ivec3(base) + offset;
+
+        if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) continue;
+
+        vec4 light = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, cell, 0) : texelFetch(floodfillSampler, cell, 0);
+        vec3 weights = mix(1.0 - blend, blend, vec3(offset));
+
+        if ((light.a > 1.5 && (light.a < 199.5 || light.a > 216.5) && maxOf(light.rgb) <= 0.0) || any(isnan(light))) continue;
+
+        total += dot(light.rgb, vec3(0.2126, 0.7152, 0.0722)) * weights.x * weights.y * weights.z;
+        weight += weights.x * weights.y * weights.z;
+    }
+
+    return weight > 0.001 ? total / weight : -1.0;
+}
+
+bool giCellEmits(ivec3 cell) {
+    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return false;
+
+    vec4 light = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, cell, 0) : texelFetch(floodfillSampler, cell, 0);
+
+    return light.a > 1.5 && (light.a < 199.5 || light.a > 216.5) && maxOf(light.rgb) > 0.0;
+}
+
 #ifdef GI_REUSE
 const float giReuseSpread = 0.3;
 const float giReuseRadius = 16.0;
@@ -261,9 +296,11 @@ void main() {
     #endif
 
     #ifdef GI_REUSE
-    ivec2 farSize = imageSize(gi_far_img) / ivec2(3, 3);
+    ivec2 farSize = imageSize(gi_far_img) / ivec2(4, 3);
+    ivec2 trackColumn = ivec2(farSize.x * 3, 0);
     #else
-    ivec2 farSize = imageSize(gi_far_img) / ivec2(1, 2);
+    ivec2 farSize = imageSize(gi_far_img) / ivec2(2, 2);
+    ivec2 trackColumn = ivec2(farSize.x, 0);
     #endif
     ivec2 farWrite = ivec2(0, (frameCounter & 1) * farSize.y);
     ivec2 farRead = ivec2(0, farSize.y) - farWrite;
@@ -303,6 +340,10 @@ void main() {
         vec4 historyGi = vec4(0.0);
         vec4 historyFar = vec4(0.0);
         vec4 farSpread = vec4(0.0);
+        vec4 historyTrack = vec4(0.0);
+        float floodNow = giFloodfillNearby(voxelPos + worldNormal * 0.5);
+        float trackWeight = 0.0;
+        float historyCut = 0.0;
         float historyWeight = 0.0;
         float historyTolerance = foliage ? 0.5 - previousView.z * 0.02 : 0.005 - previousView.z * 0.002;
 
@@ -343,10 +384,16 @@ void main() {
                 if (giStoredFace(tapSurface) != face || abs(dot(tapPos - previousView.xyz, previousNormal)) >= historyTolerance || any(isnan(tapSurface)) || any(isnan(tapGi)) || any(isinf(tapGi))) continue;
 
                 vec4 tapFar = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead);
+                vec4 tapTrack = imageLoad(gi_far_img, min(tap, farSize - 1) + farRead + trackColumn);
 
                 history += abs(tapSurface) * weight;
                 historyGi += tapGi * weight;
                 historyWeight += weight;
+
+                if (tapTrack.a >= 0.0 && !(any(isnan(tapTrack)) || any(isinf(tapTrack)))) {
+                    historyTrack += tapTrack * weight;
+                    trackWeight += weight;
+                }
 
                 #ifdef GI_REUSE
                 if (giRandom() * historyWeight < weight) reuseTap = tap;
@@ -378,6 +425,7 @@ void main() {
             history /= historyWeight;
             historyGi /= historyWeight;
             historyFar /= historyWeight;
+            historyTrack = trackWeight > 0.0 ? historyTrack / trackWeight : vec4(0.0, 0.0, 0.0, -1.0);
 
             vec3 viewNormal = foliage ? vec3(0.0, 0.0, 1.0) : mat3(gbufferModelView) * worldNormal;
             float range = length(viewPos);
@@ -386,11 +434,38 @@ void main() {
             float previousTilt = max(abs(dot(previousNormal, previousView.xyz)) / previousRange, 0.02);
 
             history.g *= min(range * range * previousTilt / (previousRange * previousRange * tilt), 1.0);
+
+            if (floodNow >= 0.0 && historyTrack.a >= 0.0) {
+                if (historyTrack.r > giFloodFloor && floodNow < historyTrack.r * giFloodBand) {
+                    float blockScale = floodNow / (historyTrack.r * giFloodBand);
+                    float historyLight = dot(historyGi.rgb, luminance);
+                    float blockShare = historyLight > 0.000001 ? clamp(max(history.b, 0.0) / historyLight, 0.0, 1.0) : 0.0;
+                    float lightScale = 1.0 - blockShare * (1.0 - blockScale);
+
+                    historyGi.rgb *= lightScale;
+                    history.b *= blockScale;
+                    historyFar.rgb *= blockScale;
+                    historyCut = 1.0 - lightScale;
+                    historyTrack.r = floodNow / giFloodBand;
+
+                    if (history.g > 32.0) {
+                        historyCut = max(historyCut, 1.0 - 32.0 / history.g);
+                        history.g = 32.0;
+                    }
+                } else if (floodNow > historyTrack.r / giFloodBand + giFloodFloor) {
+                    if (history.g > 32.0) {
+                        historyCut = 1.0 - 32.0 / history.g;
+                        history.g = 32.0;
+                    }
+
+                    historyTrack.r = floodNow * giFloodBand;
+                }
+            }
         } else {
             #ifdef GI_REUSE
             vec4 storedGi = imageLoad(gi_far_img, storeTexel);
             vec4 storedSurface = imageLoad(gi_far_img, storeTexel + ivec2(1, 0));
-            bool stored = storedSurface.r == storeCheck && !any(isnan(storedGi)) && !any(isinf(storedGi)) && !any(isnan(storedSurface)) && !any(isinf(storedSurface));
+            bool stored = storedSurface.r == storeCheck && !any(isnan(storedGi)) && !any(isinf(storedGi)) && !any(isnan(storedSurface)) && !any(isinf(storedSurface)) && (floodNow < 0.0 || (storedSurface.a > 0.0 && floodNow >= storedSurface.a * giFloodBand - giFloodFloor && floodNow <= storedSurface.a / giFloodBand + giFloodFloor && !(storedSurface.a <= giFloodFloor * 2.0 && storedSurface.g > 0.25 * dot(storedGi.rgb, luminance))));
             int seeds = stored ? 0 : (clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2);
             #else
             int seeds = clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2;
@@ -419,10 +494,14 @@ void main() {
 
             history = vec4(0.0, 4.0, 0.0, 1.0 / 32.25);
 
+            historyTrack = vec4(floodNow, 0.0, 0.0, floodNow >= 0.0 ? 1.0 : -1.0);
+
             #ifdef GI_REUSE
             if (stored) {
                 historyGi = storedGi;
                 history = vec4(0.0, 64.0, storedSurface.g, storedSurface.b);
+
+                if (storedSurface.a > 0.0 && floodNow >= 0.0) historyTrack.r = storedSurface.a;
             }
             #endif
             giPassLight = vec3(0.0);
@@ -432,8 +511,38 @@ void main() {
         ivec2 guideSize = imageSize(gi_guide_img);
         ivec2 guidePixel = min(ivec2(gl_FragCoord.xy), guideSize - 1);
         ivec3 cellShift = ivec3(floor(previousCameraPosition) - floor(cameraPosition));
-        uvec4 guide = reprojected ? imageLoad(gi_guide_img, min(ivec2(previousCoord * vec2(guideSize)), guideSize - 1)) : uvec4(0u);
+        ivec2 guidePrevious = min(ivec2(previousCoord * vec2(guideSize)), guideSize - 1);
+        uvec4 guide = reprojected ? imageLoad(gi_guide_img, guidePrevious) : uvec4(0u);
         float accumulationLength = clamp(0.75 / max(frameTime, 0.001), 31.0, 250.0) * (GI_ACCUMULATION / 0.75);
+
+        if (reprojected) {
+            uint emitterSlots = guide.a & 7u;
+            float slotTotal = 0.0;
+            float vanished = 0.0;
+
+            for (int i = 0; i < 3; i++) {
+                float slotWeight = giGuideWeight(guide[i]);
+
+                slotTotal += slotWeight;
+
+                if (((emitterSlots >> uint(i)) & 1u) != 0u && !giCellEmits(giGuideCell(guide[i]) + cellShift)) vanished += slotWeight;
+            }
+
+            if (vanished > 0.25 * slotTotal) {
+                float blockScale = 1.0 - vanished / slotTotal;
+                float historyLight = dot(historyGi.rgb, luminance);
+                float blockShare = historyLight > 0.000001 ? clamp(max(history.b, 0.0) / historyLight, 0.0, 1.0) : 0.0;
+
+                historyGi.rgb *= 1.0 - blockShare * (1.0 - blockScale);
+                history.b *= blockScale;
+                historyFar.rgb *= blockScale;
+
+                if (history.g > 16.0) {
+                    historyCut = max(historyCut, 1.0 - 16.0 / history.g);
+                    history.g = 16.0;
+                }
+            }
+        }
 
         #ifdef GI_REUSE
         float historyCap = 250.0;
@@ -460,6 +569,7 @@ void main() {
             if (ownPoint.a < 6.5) ownPoint.xyz += vec3(cellShift);
 
             ownState.b = min(ownState.b, clamp(accumulationLength * 0.5, 8.0, 40.0) - 1.0);
+            ownState.b = max(ownState.b * (1.0 - historyCut), min(ownState.b, 1.0));
             ownDirection = giReuseDirection(ownPoint, origin);
             ownShare = giCosinePdf(worldNormal, ownDirection);
         }
@@ -475,12 +585,17 @@ void main() {
         #endif
 
         if (reprojected && !rayTurn && history.g > accumulationLength * 0.5) {
-            uvec4 keptGuide = uvec4(0u, 0u, 0u, guide.a);
+            uvec4 keptGuide = uvec4(0u, 0u, 0u, guide.a & ~7u);
 
-            for (int i = 0; i < 3; i++) keptGuide[i] = giGuidePack(giGuideCell(guide[i]) + cellShift, giGuideWeight(guide[i]), 0.5);
+            for (int i = 0; i < 3; i++) {
+                keptGuide[i] = giGuidePack(giGuideCell(guide[i]) + cellShift, giGuideWeight(guide[i]), 0.5);
+
+                if (inVolume && keptGuide[i] != 0u && giCellEmits(giGuideCell(keptGuide[i]))) keptGuide.a |= 1u << uint(i);
+            }
 
             imageStore(gi_guide_img, guidePixel, inVolume ? keptGuide : uvec4(0u));
             imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(historyFar.rgb, min(historyFar.a, accumulationLength * 8.0) + 1.0));
+            imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, historyTrack.a >= 0.0 ? vec4(historyTrack.r, 0.0, 0.0, historyTrack.a) : vec4(floodNow, 0.0, 0.0, floodNow >= 0.0 ? 1.0 : -1.0));
 
             #ifdef GI_REUSE
             imageStore(gi_far_img, reusePixel + ivec2(farSize.x, 0), ownPoint);
@@ -822,16 +937,22 @@ void main() {
         inverseHitDistance = mix(clamp(history.a, 1.0 / 32.25, 4.0), inverseHitDistance, min(traceStep / (historyLength + 1.0), 1.0));
         guideSample = mix(guideLuminance, guideSample, min(traceStep / (historyLength + 1.0), 1.0));
 
-        uvec4 guideState = uvec4(0u, 0u, 0u, floatBitsToUint(guideSample));
+        vec4 trackState = floodNow < 0.0 ? vec4(0.0, 0.0, 0.0, -1.0) : vec4(historyTrack.a < 0.0 ? floodNow : mix(historyTrack.r, floodNow, min(blendStep / (historyLength + 1.0), 1.0)), 0.0, 0.0, 1.0);
+        uvec4 guideState = uvec4(0u, 0u, 0u, floatBitsToUint(guideSample) & ~7u);
 
-        for (int i = 0; i < 3; i++) guideState[i] = giGuidePack(slotCells[i], slotWeights[i], giRandom());
+        for (int i = 0; i < 3; i++) {
+            guideState[i] = giGuidePack(slotCells[i], slotWeights[i], giRandom());
+
+            if (inVolume && guideState[i] != 0u && giCellEmits(giGuideCell(guideState[i]))) guideState.a |= 1u << uint(i);
+        }
 
         imageStore(gi_guide_img, guidePixel, inVolume ? guideState : uvec4(0u));
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, trackState);
 
         #ifdef GI_REUSE
         if (history.g > 32.0 && ((int(gl_FragCoord.x) + int(gl_FragCoord.y) + frameCounter) & 7) == 0) {
             imageStore(gi_far_img, storeTexel, gi);
-            imageStore(gi_far_img, storeTexel + ivec2(1, 0), vec4(storeCheck, blockLuminance, inverseHitDistance, 0.0));
+            imageStore(gi_far_img, storeTexel + ivec2(1, 0), vec4(storeCheck, blockLuminance, inverseHitDistance, trackState.a < 0.0 ? 0.0 : trackState.r + 0.000001));
         }
         #endif
 
@@ -839,6 +960,7 @@ void main() {
     } else {
         imageStore(gi_guide_img, min(ivec2(gl_FragCoord.xy), imageSize(gi_guide_img) - 1), uvec4(0u));
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(0.0));
+        imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + trackColumn, vec4(0.0, 0.0, 0.0, -1.0));
 
         #ifdef GI_REUSE
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite + ivec2(farSize.x, 0), vec4(0.0));
