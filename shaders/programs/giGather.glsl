@@ -253,7 +253,7 @@ void main() {
     #endif
 
     #ifdef GI_REUSE
-    ivec2 farSize = imageSize(gi_far_img) / ivec2(3, 2);
+    ivec2 farSize = imageSize(gi_far_img) / ivec2(3, 3);
     #else
     ivec2 farSize = imageSize(gi_far_img) / ivec2(1, 2);
     #endif
@@ -299,6 +299,16 @@ void main() {
         float historyTolerance = foliage ? 0.5 - previousView.z * 0.02 : 0.005 - previousView.z * 0.002;
 
         face = giFace(worldNormal);
+
+        #ifdef GI_REUSE
+        float storeScale = exp2(-clamp(round(log2(-viewPos.z * gbufferProjectionInverse[1].y * 8.0 / float(textureSize(colortex14, 0).y))), -4.0, 0.0));
+        ivec3 storeCell = ivec3(floor(cameraPosition)) * int(storeScale) + ivec3(floor((worldPos + fract(cameraPosition) - worldNormal * 0.01) * storeScale));
+        uint storeHash = (uint(storeCell.x) * 73856093u) ^ (uint(storeCell.y) * 19349663u) ^ (uint(storeCell.z) * 83492791u) ^ (uint(face) * 2654435761u) ^ (uint(storeScale) * 668265263u);
+        int storeWidth = farSize.x * 3 / 2;
+        int storeSlot = int(storeHash % uint(storeWidth * farSize.y));
+        ivec2 storeTexel = ivec2((storeSlot % storeWidth) * 2, farSize.y * 2 + storeSlot / storeWidth);
+        float storeCheck = float((storeHash * 2246822519u) >> 8u);
+        #endif
 
         ivec2 historySize = textureSize(colortex14, 0);
         vec2 historyPos = previousCoord * vec2(historySize) - 0.5;
@@ -369,7 +379,14 @@ void main() {
 
             history.g *= min(range * range * previousTilt / (previousRange * previousRange * tilt), 1.0);
         } else {
+            #ifdef GI_REUSE
+            vec4 storedGi = imageLoad(gi_far_img, storeTexel);
+            vec4 storedSurface = imageLoad(gi_far_img, storeTexel + ivec2(1, 0));
+            bool stored = storedSurface.r == storeCheck && !any(isnan(storedGi)) && !any(isinf(storedGi)) && !any(isnan(storedSurface)) && !any(isinf(storedSurface));
+            int seeds = stored ? 0 : (clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2);
+            #else
             int seeds = clamp(previousCoord, 0.0, 1.0) == previousCoord ? 1 : 2;
+            #endif
 
             for (int i = 0; i < seeds; i++) {
                 vec3 seedDirection, seedLampDirection;
@@ -393,6 +410,13 @@ void main() {
             if (any(isnan(historyGi)) || any(isinf(historyGi))) historyGi = vec4(0.0, 0.0, 0.0, 1.0);
 
             history = vec4(0.0, 4.0, 0.0, 1.0 / 32.25);
+
+            #ifdef GI_REUSE
+            if (stored) {
+                historyGi = storedGi;
+                history = vec4(0.0, 64.0, storedSurface.g, storedSurface.b);
+            }
+            #endif
             giPassLight = vec3(0.0);
             giHitBlockLuminance = 0.0;
         }
@@ -794,6 +818,13 @@ void main() {
         for (int i = 0; i < 3; i++) guideState[i] = giGuidePack(slotCells[i], slotWeights[i], giRandom());
 
         imageStore(gi_guide_img, guidePixel, inVolume ? guideState : uvec4(0u));
+
+        #ifdef GI_REUSE
+        if (history.g > 32.0 && ((int(gl_FragCoord.x) + int(gl_FragCoord.y) + frameCounter) & 7) == 0) {
+            imageStore(gi_far_img, storeTexel, gi);
+            imageStore(gi_far_img, storeTexel + ivec2(1, 0), vec4(storeCheck, blockLuminance, inverseHitDistance, 0.0));
+        }
+        #endif
 
         historyLength = clamp(history.g, 0.0, historyCap) + 1.0;
     } else {
