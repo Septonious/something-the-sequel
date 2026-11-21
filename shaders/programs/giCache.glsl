@@ -1,6 +1,10 @@
 #include "/lib/common.glsl"
 
-#ifdef GI_CACHE_TRACE
+#ifdef GI_CACHE_SURFACE
+layout (local_size_x = 64) in;
+
+const ivec3 workGroups = ivec3(1, 1, 1);
+#elif defined GI_CACHE_TRACE
 layout (local_size_x = 16, local_size_y = 1, local_size_z = 32) in;
 
 #if VOXEL_VOLUME_SIZE == 128
@@ -44,6 +48,13 @@ writeonly uniform image3D gi_cache_img, gi_cache_img_copy;
 layout(r16f) uniform image3D fog_visibility_img;
 #endif
 
+#if defined GI_CACHE_TRACE || defined GI_CACHE_SURFACE
+layout(std430, binding = 0) buffer giSurfaceList {
+	uvec4 surfaceDispatch;
+	uvec2 surfaceCells[];
+};
+#endif
+
 uniform mat4 shadowProjection;
 uniform mat4 shadowModelView;
 
@@ -79,10 +90,20 @@ bool giSolid(ivec3 cell) {
 }
 
 void main() {
+	#ifdef GI_CACHE_SURFACE
+	if (gl_GlobalInvocationID.x >= surfaceDispatch.w) return;
+
+	uvec2 job = surfaceCells[gl_GlobalInvocationID.x];
+	ivec3 pos = ivec3(job.x & 511u, (job.x >> 9u) & 511u, (job.x >> 18u) & 511u);
+	int face = int(job.x >> 27u);
+
+	giSeed = job.y;
+	#else
 	ivec3 pos = ivec3(gl_GlobalInvocationID);
 
 	#ifdef GI_CACHE_TRACE
 	pos.x = pos.x * 4 + ((-(pos.y * 3 + pos.z * 5 + frameCounter)) & 3);
+	#endif
 	#endif
 
 	vec4 cache = giCacheFetch(pos);
@@ -97,7 +118,7 @@ void main() {
 	giSeed = uint(pos.x) * 1973u + uint(pos.y) * 9277u + uint(pos.z) * 26699u + uint(frameCounter) * 4099u;
 	giRandom();
 
-	ivec3 face = ivec3(0);
+	int face = -1;
 	float faces = 0.0;
 
 	for (int i = 0; i < 6; i++) {
@@ -108,24 +129,36 @@ void main() {
 		if (neighbour != 0u && !giVoxelSeeThrough(neighbour) && !giVoxelPlant(neighbour)) {
 			faces += 1.0;
 
-			if (giRandom() * faces < 1.0) face = offset;
+			if (giRandom() * faces < 1.0) face = i;
 		}
 	}
 
 	if (faces > 0.0) {
-		vec3 normal = -vec3(face);
-		vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
-		vec3 direction, lampDirection;
-		vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
-		vec4 current = giTraceRadiance(origin, direction, lightDirection) * weights.x;
+		uint item = atomicAdd(surfaceDispatch.w, 1u);
 
-		if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
+		if ((item & 63u) == 0u) atomicAdd(surfaceDispatch.x, 1u);
 
-		cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
-	} else {
-		cache = vec4(0.0, 0.0, 0.0, -1.0);
+		surfaceCells[item] = uvec2(uint(pos.x) | (uint(pos.y) << 9u) | (uint(pos.z) << 18u) | (uint(face) << 27u), giSeed);
+
+		return;
 	}
 
+	cache = vec4(0.0, 0.0, 0.0, -1.0);
+	#endif
+
+	#ifdef GI_CACHE_SURFACE
+	vec3 normal = -vec3(ivec3(face == 0, face == 1, face == 2) - ivec3(face == 3, face == 4, face == 5));
+	vec3 origin = vec3(pos) + 0.5 - normal * 0.45;
+	vec3 direction, lampDirection;
+	vec2 weights = giLampedDirections(origin, normal, direction, lampDirection);
+	vec4 current = giTraceRadiance(origin, direction, lightDirection) * weights.x;
+
+	if (weights.y > 0.0) current += giTraceRadiance(origin, lampDirection, lightDirection) * weights.y;
+
+	cache = cache.a < 0.0 ? current : mix(cache, current, 0.03125);
+	#endif
+
+	#if defined GI_CACHE_TRACE || defined GI_CACHE_SURFACE
 	#ifdef LPV_FOG
 	vec3 fogLight = (frameCounter & 1) == 0 ? texelFetch(floodfillSamplerCopy, pos, 0).rgb : texelFetch(floodfillSampler, pos, 0).rgb;
 
@@ -148,4 +181,5 @@ void main() {
 		imageStore(gi_cache_img_copy, pos, cache);
 	} else {
 		imageStore(gi_cache_img, pos, cache);
-	}}
+	}
+}

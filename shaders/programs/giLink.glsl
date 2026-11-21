@@ -9,9 +9,16 @@ uniform usampler3D quadHashSampler;
 layout(r32ui) uniform uimage3D voxel_box_img;
 layout(rgba32ui) uniform uimage3D quad_pool_img;
 
+layout(std430, binding = 0) buffer giSurfaceList {
+	uvec4 surfaceDispatch;
+	uvec2 surfaceCells[];
+};
+
 void main() {
 	ivec3 slot = ivec3(gl_GlobalInvocationID);
 	ivec3 base = ivec3(slot.x * 8, slot.yz);
+
+	if (slot == ivec3(0)) surfaceDispatch = uvec4(0u, 1u, 1u, 0u);
 
 	if (texelFetch(quadHashSampler, base, 0).r == 0u) return;
 
