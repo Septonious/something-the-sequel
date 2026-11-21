@@ -32,8 +32,8 @@ const float wetnessHalflife = 128.0;
 const int colortex0Format = RGB16F;
 const int colortex11Format = RGBA16;
 const int colortex13Format = RGBA8;
-const int colortex14Format = RGBA16F;
-const int colortex15Format = RGBA16F;
+const int colortex14Format = RGBA32F;
+const int colortex15Format = RGBA32F;
 */
 #else
 /*
