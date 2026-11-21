@@ -366,6 +366,10 @@ vec3 giHitRadiance(ivec3 hitCell, ivec3 hitFace, vec3 hitPos, uint hitWord, vec3
 
 	sunLight *= clamp(dot(faceNormal, lightDirection) * 1.01 - 0.01, 0.0, 1.0) * (1.0 - wetness * 0.5) * shadowFade;
 
+	#ifdef CLOUD_SHADOWS_GLSL
+	if (sunLight > 0.0) sunLight *= getCloudShadow(hitWorld + cameraPosition, lightDirection);
+	#endif
+
 	float vanillaDiffuse = (0.25 * faceNormal.y + 0.75) + (0.667 - abs(faceNormal.x)) * (1.0 - abs(faceNormal.y)) * 0.15;
 	      vanillaDiffuse *= vanillaDiffuse;
 

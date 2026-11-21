@@ -79,6 +79,12 @@ vec4 giCacheFetch(ivec3 cell) {
 	return (frameCounter & 1) == 0 ? texelFetch(giCacheSampler, previousCell, 0) : texelFetch(giCacheSamplerCopy, previousCell, 0);
 }
 
+#if defined VC_SHADOWS && defined VOLUMETRIC_CLOUDS && defined OVERWORLD
+uniform float frameTimeCounter;
+
+#include "/lib/lighting/cloudShadows.glsl"
+#endif
+
 #include "/lib/vx/giTrace.glsl"
 
 bool giSolid(ivec3 cell) {
