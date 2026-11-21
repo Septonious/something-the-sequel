@@ -56,7 +56,6 @@ uniform sampler2D colortex5, colortex6;
 
 #ifdef GI
 uniform sampler2D colortex14;
-uniform sampler2D colortex15;
 #endif
 
 uniform mat4 gbufferProjection;
@@ -215,7 +214,7 @@ void main() {
 
         vec4 gi = texture2D(colortex14, screenPos.xy);
 
-        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * ((1.0 - giSurface.y) * giAmbientDelta(gi, giSurface.x, giFade, viewPos) + giSurface.y * giBlockLight(gi, texture2D(colortex15, screenPos.xy).b)), vec3(0.0)), vec3(1.0 / 2.2));
+        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * ((1.0 - giSurface.y) * giAmbientDelta(gi, giSurface.x, giFade, viewPos) + giSurface.y * gi.rgb * GI_STRENGTH), vec3(0.0)), vec3(1.0 / 2.2));
     }
     #endif
 
