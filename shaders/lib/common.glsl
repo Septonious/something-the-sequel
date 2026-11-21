@@ -173,6 +173,7 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define GI_SCREEN_TRACE
 #define GI_RESOLUTION 2 //[1 2 4]
 #define GI_RAY_RATE 1 //[1 2 4]
+#define GI_REUSE
 #define GI_RAY_STEPS 32 //[16 24 32 48 64]
 #define GI_ACCUMULATION 0.75 //[0.25 0.50 0.75 1.00 1.50 2.00 3.00]
 #define GI_FILTER 1.00 //[0.00 0.50 1.00 2.00 4.00]
@@ -530,4 +531,7 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 #endif
 
 #ifdef GI_SCREEN_TRACE
+#endif
+
+#ifdef GI_REUSE
 #endif
