@@ -286,7 +286,7 @@ float giLampWeight(vec3 origin, vec3 normal, uint data, out vec3 lampCentre) {
 	float lampDistance = length(toLamp);
 	float level = float(data >> 30u);
 
-	if (lampDistance < 1.2375 || dot(normal, toLamp) + 0.875 <= 0.0) return 0.0;
+	if (lampDistance < 0.4 || dot(normal, toLamp) + 0.875 <= 0.0) return 0.0;
 
 	return level * level * clamp(1.0 - lampDistance / 16.0, 0.0, 1.0) / (lampDistance * lampDistance + 0.5);
 }

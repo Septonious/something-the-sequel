@@ -791,7 +791,7 @@ void main() {
 
         float farLength = min(historyFar.a, accumulationLength * 8.0);
         bool stray = blockLuminance > 0.0 && dot(gi.rgb, luminance) > 16.0 * dot(historyGi.rgb, luminance);
-        vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), min(blendStep / (farLength + 31.0), 1.0));
+        vec3 farLight = mix(historyFar.rgb, stray ? gi.rgb : vec3(0.0), min(blendStep / min(farLength + 31.0, clamp(history.g, 0.0, accumulationLength) + 1.0), 1.0));
 
         imageStore(gi_far_img, min(ivec2(gl_FragCoord.xy), farSize - 1) + farWrite, vec4(farLight, farLength + blendStep));
 
