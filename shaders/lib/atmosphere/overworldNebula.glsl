@@ -74,24 +74,24 @@ void drawOverworldNebula(inout vec3 color, in vec3 worldPos, in float VoU, in fl
 */
 void drawOverworldNebula(inout vec3 color, in vec3 worldPos, in float VoU, in float VoM, in float dither, in float caveFactor, inout float nebulaFactor) {
 	float VoMClamped = clamp(VoM, 0.0, 1.0);
-	float visibility = (1.0 - wetness) * caveFactor * moonVisibility;
+	float visibility = (1.0 - wetness) * caveFactor * moonVisibility * VoU * pow(1.0 - VoU, 1.5 - VoMClamped * 0.5) * 3.0;
 
 	if (visibility > 0.0) {
-		vec2 nebulaPlaneCoord = worldPos.xz / (length(worldPos.y) + length(worldPos.xyz)) * 0.5;
+		vec2 nebulaPlaneCoord = worldPos.xz / (length(worldPos.y) + length(worldPos.xyz));
 			 //nebulaPlaneCoord += mix(cos(nebulaPlaneCoord.x * 25), sin(nebulaPlaneCoord.y * 50), nebulaPlaneCoord.y) * 0.0125;
-			 nebulaPlaneCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.00;
+			 nebulaPlaneCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.001;
 
 		float baseOctave = texture2D(noisetex, nebulaPlaneCoord * 0.125).g;
 			  baseOctave = max(baseOctave - 0.2, 0.0);
-		float midOctave = texture2D(noisetex, nebulaPlaneCoord * 0.50).r;
+		float midOctave = texture2D(noisetex, nebulaPlaneCoord * 0.25).r;
 			  midOctave = max(midOctave - 0.175, 0.0);
-		float detailOctave = texture2D(noisetex, nebulaPlaneCoord * 2.0).r;
+		float detailOctave = texture2D(noisetex, nebulaPlaneCoord).r;
 			  detailOctave = max(detailOctave - 0.075, 0.0);
-		float nebulaNoise = (0.25 + 0.75 * baseOctave) * midOctave * (0.25 + 0.75 * detailOctave) * 4.0;
+		float nebulaNoise = (0.25 + 0.75 * baseOctave) * midOctave * (0.25 + 0.75 * detailOctave) * 6.0;
 			  nebulaNoise *= visibility;
 
-		vec3 nebulaColor = lightNight * vec3(0.25 + max(baseOctave * midOctave * (1.0 - midOctave * 2.75), 0.0) * 50.0, 0.5 + midOctave * midOctave * midOctave * (8.0 + detailOctave * 8.0), (0.75 - midOctave * baseOctave) * 1.5);
-		vec3 nebula = (0.5 + VoMClamped * 0.5) * nebulaColor * (nebulaNoise + pow4(nebulaNoise) * 16.0) * visibility;
+		vec3 nebulaColor = lightNight * vec3(0.3 + detailOctave * baseOctave * (0.7 + midOctave), 0.5 + midOctave * midOctave * midOctave * 2.0, 0.75 - midOctave * midOctave * 1.5);
+		vec3 nebula = (0.5 + VoMClamped * 0.5) * nebulaColor * (nebulaNoise + pow3(nebulaNoise) * 9.0) * visibility;
 		
 		color.rgb += nebula;
 		nebulaFactor += length(nebula);

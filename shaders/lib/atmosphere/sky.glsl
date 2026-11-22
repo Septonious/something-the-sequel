@@ -38,7 +38,7 @@ vec3 getAtmosphere(vec3 viewPos, vec3 worldPos, out float atmosphereHardMixFacto
     daySky.rg *= mix(vec2(1.0), vec2(1.5, 0.75), skyGround * mie * sunVisibility * (1.0 - timeBrightnessSqrt) * 0.5);
     daySky *= 1.0 + mie * (0.5 + timeBrightnessSqrt * 0.5);
 
-    vec3 nightSky = lightNight * 0.1 * atmosphericDensity;
+    vec3 nightSky = lightNight * 0.65 * atmosphericDensity;
     atmosphereHardMixFactor = float(atmosphericDensity > 0.2);
 
     return fmix(daySky, nightSky, moonVisibility);

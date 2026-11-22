@@ -35,7 +35,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 		float antialiasing = max(fwidth(distanceToStar), 0.010);
 
 		float spawnNoise = getStarNoise(cell + vec2(17.0, 53.0));
-		float spawn = step(0.999 - min(nebulaFactor * 0.5, 0.5), spawnNoise);
+		float spawn = step(0.99 - min(nebulaFactor * 0.5, 0.5), spawnNoise);
 		if (spawn == 0.0) return;
 
 		float sizeNoise = getStarNoise(cell + vec2(233.0, 71.0));
@@ -48,7 +48,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 		);
 		star *= spawn;
 
-		star *= visibility * visibility * (0.5 + nebulaFactor * 1.5);
+		star *= visibility * visibility * (1.0 + nebulaFactor);
 
 		vec3 starColor = getStarColor(colorNoise);
 
