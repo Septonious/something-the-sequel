@@ -22,7 +22,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 
 	if (visibility > 0.0) {
 		vec2 planeCoord = worldPos.xz / max(abs(worldPos.y) + length(worldPos.xz), 1e-4);
-			 planeCoord *= size * 1.5;
+			 planeCoord *= size;
 			 planeCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.0;
 
 		float gridScale = 750.0 * STAR_SCALE;

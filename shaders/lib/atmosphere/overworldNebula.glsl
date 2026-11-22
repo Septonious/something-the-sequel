@@ -77,7 +77,7 @@ void drawOverworldNebula(inout vec3 color, in vec3 worldPos, in float VoU, in fl
 	float visibility = (1.0 - wetness) * caveFactor * moonVisibility;
 
 	if (visibility > 0.0) {
-		vec2 nebulaPlaneCoord = worldPos.xz / (length(worldPos.y) + length(worldPos.xyz));
+		vec2 nebulaPlaneCoord = worldPos.xz / (length(worldPos.y) + length(worldPos.xyz)) * 0.5;
 			 //nebulaPlaneCoord += mix(cos(nebulaPlaneCoord.x * 25), sin(nebulaPlaneCoord.y * 50), nebulaPlaneCoord.y) * 0.0125;
 			 nebulaPlaneCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.00;
 
@@ -85,7 +85,7 @@ void drawOverworldNebula(inout vec3 color, in vec3 worldPos, in float VoU, in fl
 			  baseOctave = max(baseOctave - 0.2, 0.0);
 		float midOctave = texture2D(noisetex, nebulaPlaneCoord * 0.50).r;
 			  midOctave = max(midOctave - 0.175, 0.0);
-		float detailOctave = texture2D(noisetex, nebulaPlaneCoord * 2).r;
+		float detailOctave = texture2D(noisetex, nebulaPlaneCoord * 2.0).r;
 			  detailOctave = max(detailOctave - 0.075, 0.0);
 		float nebulaNoise = (0.25 + 0.75 * baseOctave) * midOctave * (0.25 + 0.75 * detailOctave) * 4.0;
 			  nebulaNoise *= visibility;
