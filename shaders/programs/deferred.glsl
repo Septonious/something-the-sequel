@@ -200,11 +200,11 @@ void main() {
 		drawCirrusClouds(cirrus, atmosphereColor, worldPos, nViewPos, caveFactor, occlusion);
 		#endif
 
-		if (VoU > 0.0) {
+
 			#ifdef OVERWORLD_NEBULA
 			drawOverworldNebula(color, worldPos, VoU, VoM, blueNoiseDither, caveFactor, nebulaFactor);
 			#endif
-		}
+	
 
 		#ifdef ROUND_SUN_MOON
 		drawSunMoon(color, worldPos, nViewPos, VoU, VoS, VoM, caveFactor, occlusion);
