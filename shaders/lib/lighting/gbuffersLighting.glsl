@@ -1,3 +1,9 @@
+// FINAL MATERIAL LIGHTING MIXER.
+// - Preserves generated PBR (normal/specular/emission) and independent skylight.
+// - Receives local DDA illumination from subvoxelLocalLight.glsl for opaque
+//   terrain/block-entity/entity surfaces, in addition to sun and ambient light.
+// - Uses geometric normal to position DDA rays; PBR shading normal is separate.
+// - Directional shadow-map, cloud shadows and SSAO/GTAO are separate systems.
 #ifdef VC_SHADOWS
 #if defined OVERWORLD && defined VOLUMETRIC_CLOUDS && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES || defined GBUFFERS_TEXTURED || defined GBUFFERS_WATER)
 #include "/lib/lighting/cloudShadows.glsl"
@@ -6,12 +12,12 @@
 
 vec3 directLighting = vec3(0.0);
 vec3 occludableLighting = vec3(0.0);
-
 #ifdef GI
 vec3 giReceptor = vec3(0.0);
 vec2 giSurface = vec2(0.0);
 #endif
 
+// Material shading entry: keep its energy/emission math when altering occluder IDs.
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
                       in float NoU, in float NoL, in float NoE,
                       in float subsurface, in float emission, in float smoothness, in float parallaxShadow, in float metalness, in float f0) {
@@ -33,54 +39,29 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     NoL = pow(NoL, 1.0 + float(subsurface > 0.5) * 0.5);
     #endif
 
-    //Block Lighting
+    // Block light: the world-space renderer supplies all non-entity local illumination.
+    // Keep vanilla block light on entities; preserve the sky lightmap independently.
+    #ifdef GBUFFERS_ENTITIES
     float blockLightMap = pow6(lightmap.x * lightmap.x) * 2.0 + max(lightmap.x - 0.05, 0.0);
           blockLightMap *= blockLightMap * 0.5;
-
     vec3 blockLighting = blockLightCol * blockLightMap;
     #ifdef OVERWORLD
          blockLighting *= 1.0 - pow4(lightmap.y) * 0.75;
     #endif
-
-    //Floodfill Lighting. Works only on Iris
-    #if (!defined GI || defined GBUFFERS_HAND) && !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT
-    vec3 voxelPos = worldToVoxel(worldPos);
-
-    float floodfillFade = maxOf(abs(worldPos) / (voxelVolumeSize * 0.5));
-          floodfillFade = clamp(floodfillFade, 0.0, 1.0);
-
-    vec3 voxelLighting = vec3(0.0);
-
-    if (isInsideVoxelVolume(voxelPos) && emissionMask < 0.001) {
-        vec3 voxelSamplePos = voxelPos + worldNormal;
-             voxelSamplePos /= voxelVolumeSize;
-             voxelSamplePos = clamp(voxelSamplePos, 0.0, 1.0);
-
-        vec3 lightVolume = vec3(0.0);
-        if ((frameCounter & 1) == 0) {
-            lightVolume = texture3D(floodfillSamplerCopy, voxelSamplePos).rgb;
-        } else {
-            lightVolume = texture3D(floodfillSampler, voxelSamplePos).rgb;
-        }
-        voxelLighting = pow(lightVolume, vec3(1.0 / FLOODFILL_RADIUS));
-        //voxelLighting *= sqrt(length(max(vec3(0.0), voxelLighting - vec3(0.02)))) * 2.0;
-
-        #ifdef GBUFFERS_ENTITIES
-        voxelLighting += pow16(lightmap.x) * blockLightCol;
-        #endif
-
-        float mixFactor = 1.0 - floodfillFade * floodfillFade;
-
-        blockLighting = mix(blockLighting, voxelLighting * FLOODFILL_BRIGHTNESS, mixFactor * 0.95);
-    }
-    #endif
-
-    #ifdef GI
-    #ifdef GBUFFERS_HAND
-    blockLighting *= 0.2;
     #else
-    blockLighting *= 0.0;
+    float blockLightMap = 0.0;
+    vec3 blockLighting = vec3(0.0);
     #endif
+
+    #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
+    // Receiver geometry must not depend on perturbed foliage/PBR shading normals.
+    vec3 localGeometricNormal = normalize(mat3(gbufferModelViewInverse) * normal);
+    #if LOCAL_LIGHT_VERTEX_RECEIVER == 1
+    vec3 localDirectLighting = getLocalDirectLighting(localLightReceiver, localGeometricNormal, emissionMask);
+    #else
+    vec3 localDirectLighting = getLocalDirectLighting(worldPos, localGeometricNormal, emissionMask);
+    #endif
+    blockLighting += localDirectLighting;
     #endif
 
     //Shadow Calculations
@@ -169,7 +150,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     #ifdef VC_SHADOWS
     #if defined OVERWORLD && defined VOLUMETRIC_CLOUDS && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES || defined GBUFFERS_TEXTURED || defined GBUFFERS_WATER)
-    if (shadowVisibility > 0.0 && NoL > 0.0) {
+    if (NoL > 0.0) {
         vec3 lightDirection = normalize(mat3(gbufferModelViewInverse) * lightVec);
         shadow *= getCloudShadow(worldPos + cameraPosition, lightDirection);
     }
@@ -273,7 +254,14 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     vec3 finalColor = diffuseAlbedo + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
     directLighting = albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
-    occludableLighting = albedo.rgb * (1.0 - metalness) * (sceneLighting - directSceneLighting + blockLighting) * vanillaDiffuse;
+    occludableLighting = albedo.rgb * (1.0 - metalness) * (sceneLighting - directSceneLighting + blockLighting
+        #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
+        - localDirectLighting
+        #endif
+    ) * vanillaDiffuse;
 
     albedo.rgb = pow(max(finalColor, vec3(0.0)), vec3(1.0 / 2.2));
+    #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && LOCAL_LIGHT_DEBUG > 0 && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
+    albedo.rgb = pow(localLightDebugColor, vec3(1.0 / 2.2));
+    #endif
 }

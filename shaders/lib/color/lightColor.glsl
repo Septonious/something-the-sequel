@@ -1,3 +1,5 @@
+// GLOBAL LIGHTING COLOR SCHEMES. Material emission, sunlight and ambient
+// are intentionally independent from direct DDA geometry classification.
 #if defined OVERWORLD
 float timeBrightnessSqrt = sqrt(timeBrightness);
 float mefade = 1.0 - clamp(abs(timeAngle - 0.5) * 8.0 - 1.5, 0.0, 1.0);

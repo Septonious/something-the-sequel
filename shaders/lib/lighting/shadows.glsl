@@ -1,3 +1,7 @@
+// DIRECTIONAL SUN/MOON SHADOW MAP — not the local-emitter DDA tracer.
+// Shadowmap PCSS/VPS sampling, blocker search and fallback lightmap shading.
+// The shadow pass also hosts voxel capture, but these shadowtex samplers are
+// independent of the custom integer directOccSampler used for colored lights.
 uniform sampler2DShadow shadowtex0;
 
 #if defined SHADOW_COLOR || defined VPS
@@ -34,6 +38,7 @@ const vec2 shadowOffsets8[8] = vec2[8](
    vec2(-0.40412395850181015, -0.8212788214021378)
 );
 
+// Shadow visibility/depth comparison helper.
 float texture2DShadow(sampler2D shadowtex, vec3 shadowPos) {
     float shadow = texture2D(shadowtex, shadowPos.xy).r;
 
@@ -42,6 +47,7 @@ float texture2DShadow(sampler2D shadowtex, vec3 shadowPos) {
 
 #ifdef VPS
 //Variable Penumbra Shadows based on Tech's Lux Shader (https://github.com/TechDevOnGitHub)
+// Estimate PCSS blocker depth before selecting penumbra kernel width.
 void findBlockerDistance(vec3 shadowPos, mat2 ditherMatrix, inout float offset, float skyLightMap, float vpsFade, vec2 depthGradient) {
     float blockerDistance = 0.0;
     float blockerCount = 0.0;
@@ -60,6 +66,7 @@ void findBlockerDistance(vec3 shadowPos, mat2 ditherMatrix, inout float offset, 
 }
 #endif
 
+// Combine directional shadow visibility, optional color and translucency.
 vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLightMap, float vpsFade, vec2 depthGradient) {
     float shadow0 = 0.0;
     vec3 shadowCol = vec3(0.0);    
@@ -106,6 +113,7 @@ vec3 computeShadow(vec3 shadowPos, float offset, float subsurface, float skyLigh
     return clamp(shadowCol * (1.0 - shadow0) + shadow0, vec3(0.0), vec3(16.0));
 }
 
+// Lightmap-based fallback when the directional shadow map is unavailable.
 vec3 getFakeShadow(float skyLight) {
     #ifdef END
     return vec3(1.0);

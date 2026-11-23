@@ -23,7 +23,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 	if (visibility > 0.0) {
 		vec2 planeCoord = worldPos.xz / max(abs(worldPos.y) + length(worldPos.xz), 1e-4);
 			 planeCoord *= size;
-			 planeCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.0;
+			 planeCoord += cameraPosition.xz * 0.00001 + frameTimeCounter * 0.001;
 
 		float gridScale = 750.0 * STAR_SCALE;
 		vec2 starCoord = planeCoord * gridScale;
@@ -35,7 +35,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 		float antialiasing = max(fwidth(distanceToStar), 0.010);
 
 		float spawnNoise = getStarNoise(cell + vec2(17.0, 53.0));
-		float spawn = step(0.99 - min(nebulaFactor * 0.5, 0.5), spawnNoise);
+		float spawn = step(0.99 - min(nebulaFactor * 0.15, 0.15), spawnNoise);
 		if (spawn == 0.0) return;
 
 		float sizeNoise = getStarNoise(cell + vec2(233.0, 71.0));
@@ -48,7 +48,7 @@ void drawStars(inout vec3 color, in vec3 worldPos, in vec3 sunVec, in float VoU,
 		);
 		star *= spawn;
 
-		star *= visibility * visibility * (1.0 + nebulaFactor);
+		star *= visibility * visibility * STAR_BRIGHTNESS;
 
 		vec3 starColor = getStarColor(colorNoise);
 

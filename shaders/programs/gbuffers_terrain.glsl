@@ -7,6 +7,9 @@
 // VSH Data //
 in vec4 color;
 in vec3 normal;
+#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
+in vec3 localLightReceiver;
+#endif
 in vec2 texCoord, lmCoord;
 flat in int mat;
 
@@ -38,7 +41,6 @@ uniform vec4 lightningBoltPosition;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform usampler3D voxelSampler;
 
 #if AO_TYPE == 0
@@ -99,6 +101,7 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/aoLattice.glsl"
 #endif
 
+#include "/lib/lighting/subvoxelLocalLight.glsl"
 #include "/lib/lighting/gbuffersLighting.glsl"
 
 #ifdef GENERATED_EMISSION
@@ -173,33 +176,15 @@ void main() {
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, subsurface, emission, smoothness, parallaxShadow, metalness, f0);
 
-    /* DRAWBUFFERS:0 */
+    /* RENDERTARGETS: 0 */
     gl_FragData[0] = albedo;
 
-    #ifdef SCREEN_SPACE_SHADOWS
-    /* DRAWBUFFERS:09 */
-    gl_FragData[1] = vec4(directLighting * (1.0 - leaves), albedo.a);
-    #endif
-
     #if AO_TYPE > 0
-    #ifdef SCREEN_SPACE_SHADOWS
-    /* RENDERTARGETS: 0,9,10,11 */
-    gl_FragData[2] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
-    gl_FragData[3] = vec4(foliage, 0.0, 0.0, albedo.a);
-    #else
     /* RENDERTARGETS: 0,10,11 */
     gl_FragData[1] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
     gl_FragData[2] = vec4(foliage, 0.0, 0.0, albedo.a);
     #endif
-    #endif
 
-    #ifdef GI
-    /* RENDERTARGETS: 0,9,10,11,13 */
-    gl_FragData[1] = vec4(directLighting * (1.0 - leaves), albedo.a);
-    gl_FragData[2] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
-    gl_FragData[3] = vec4(foliage, giSurface, albedo.a);
-    gl_FragData[4] = vec4(giReceptor, albedo.a);
-    #endif
 
     #if defined RAIN_PUDDLES && defined OVERWORLD
     vec4 puddleData = vec4(puddle, 0.0, 0.0, 1.0);
@@ -218,6 +203,9 @@ void main() {
 // VSH Data //
 out vec4 color;
 out vec3 normal;
+#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
+out vec3 localLightReceiver;
+#endif
 out vec2 texCoord, lmCoord;
 flat out int mat;
 
@@ -284,6 +272,9 @@ void main() {
 	position.xyz = getWavingBlocks(position.xyz, istopv, lmCoord.y);
 	#endif
 
+	#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
+    localLightReceiver = position.xyz;
+    #endif
 	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 
 	//TAA jittering

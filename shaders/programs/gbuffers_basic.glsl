@@ -92,19 +92,9 @@ void main() {
     /* DRAWBUFFERS:0 */
     gl_FragData[0] = albedo;
 
-    #ifdef GI
-    /* RENDERTARGETS: 0,13 */
-    gl_FragData[1] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #endif
-
     #ifdef RAIN_PUDDLES
-    #ifdef GI
-    /* RENDERTARGETS: 0,13,7 */
-    gl_FragData[2] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #else
     /* RENDERTARGETS: 0,7 */
-    gl_FragData[1] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #endif
+    gl_FragData[1] = vec4(0.0);
     #endif
 }
 

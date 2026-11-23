@@ -1,6 +1,12 @@
+// SURFACE AMBIENT OCCLUSION LATTICE — independent of local DDA block shadows.
+// Shadow vertex stage writes available face-corner AO; GBuffers samples four
+// neighboring lattice cells to smoothly interpolate the cached AO values.
+// Input: shadow-pass normals/vertex alpha. Output: material AO multiplier.
+// Do not change its image layout to fix local DDA corner leaks.
 const ivec3 aoLatticeSize = ivec3(96, 64, 96);
 
 #ifdef SHADOW
+// Only axis-aligned terrain corners contribute; atomicMax makes overlapping writes safe.
 void updateAoLattice() {
 	vec3 normalAbs = abs(gl_Normal);
 	bool terrain = any(equal(ivec3(renderStage), ivec3(MC_RENDER_STAGE_TERRAIN_SOLID, MC_RENDER_STAGE_TERRAIN_CUTOUT, MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED)));
@@ -20,6 +26,7 @@ void updateAoLattice() {
 	imageAtomicMax(ao_lattice_img, ivec3(latticePos.x + dir * aoLatticeSize.x, latticePos.yz), uint((1.0 - gl_Color.a) * 254.0 + 0.5) + 1u);
 }
 #else
+// Bilinear AO in the tangent plane of the receiving face; fall back to alpha if incomplete.
 float getAoLattice(vec3 worldPos) {
 	vec3 faceNormal = mat3(gbufferModelViewInverse) * normal;
 	vec3 normalAbs = abs(faceNormal);

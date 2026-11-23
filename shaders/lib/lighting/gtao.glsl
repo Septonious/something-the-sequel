@@ -1,3 +1,19 @@
+// GTAO (screen-space horizon integration), entirely separate from voxel occupancy.
+// Reconstructs view normals from depth derivatives; samples three angular
+// slices, each with twelve depth taps and a 32-sector occlusion bit mask.
+// Cost scales with shaded pixels, not with nearby block-light emitters.
+// Exact GLSL 1.30-compatible 32-bit population count (SWAR).
+// SWAR population count; name is historical, not evidence LPV fog is active.
+int lpvPopcount32(uint bits) {
+    bits -= (bits >> 1u) & 0x55555555u;
+    bits = (bits & 0x33333333u) + ((bits >> 2u) & 0x33333333u);
+    bits = (bits + (bits >> 4u)) & 0x0F0F0F0Fu;
+    bits += bits >> 8u;
+    bits += bits >> 16u;
+    return int(bits & 63u);
+}
+
+// Return approximate ambient visibility; never use this as a DDA hard-shadow test.
 float getGTAO(vec3 viewPos, vec2 coord, float sliceDither, float stepDither) {
     vec2 viewSize = vec2(textureSize(depthtex0, 0));
     vec2 pixelSize = 1.0 / viewSize;
@@ -57,7 +73,7 @@ float getGTAO(vec3 viewPos, vec2 coord, float sliceDither, float stepDither) {
             if (sectorCount > 0u) occludedSectors |= (0xFFFFFFFFu >> (32u - sectorCount)) << sectorStart;
         }
 
-        visibility += length(projectedNormal) * sliceWeight * (1.0 - float(bitCount(occludedSectors)) / 32.0);
+        visibility += length(projectedNormal) * sliceWeight * (1.0 - float(lpvPopcount32(occludedSectors)) / 32.0);
     }
 
     return pow(max(visibility / 3.0, 0.0), AO_STRENGTH * 2.0);

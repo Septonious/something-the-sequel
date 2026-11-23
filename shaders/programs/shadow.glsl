@@ -1,3 +1,9 @@
+// SHADOW CAPTURE ENTRY POINT. Both standard sunlight shadow rendering and
+// occupancy capture use this pass, but they have different visibility rules.
+// DDA image writes occur in VSH before the alpha test of FSH. Face culling,
+// block-entity submission and shadow.culling can therefore affect occupancy.
+// State-bearing panel blocks always capture every vertex, regardless of the
+// general LOCAL_OCC_CAPTURE_ALL_VERTICES performance toggle.
 #include "/lib/common.glsl"
 
 #define SHADOW
@@ -33,6 +39,8 @@ float eBS = eyeBrightnessSmooth.y / 240.0;
 #endif
 
 // Main //
+// Fragment: atlas alpha/shadow color. Vertex: coordinate transforms and
+// shadow-pass voxel material/geometry capture.
 void main() {
     vec4 albedo = texture2D(tex, texCoord) * color;
 
@@ -77,6 +85,14 @@ flat out int mat;
 uniform int renderStage;
 
 writeonly uniform uimage3D voxel_img;
+#ifdef LOCAL_DIRECT_LIGHTING
+// R32UI packs the *canonical shape class* (high byte) with observed face
+// vertex coverage (low bits). Atomic OR is used ONLY for movable panels.
+// Unlike per-vertex imageStore, the result is independent of vertex order.
+layout(r32ui) uniform uimage3D direct_occ_img;
+layout(r32ui) uniform uimage3D direct_lights_img;
+#endif
+
 
 #if AO_TYPE == 0
 layout(r32ui) uniform uimage3D ao_lattice_img;
@@ -111,8 +127,12 @@ uniform int renderStage;
 uniform sampler2D tex;
 #endif
 
+#if defined WAVING_LEAVES || defined WAVING_PLANTS || (defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT)
+uniform float frameTimeCounter;
+#endif
+
 #if defined WAVING_LEAVES || defined WAVING_PLANTS
-uniform float frameTimeCounter, rainStrength;
+uniform float rainStrength;
 
 uniform mat4 shadowProjection;
 uniform mat4 shadowModelView;
@@ -131,6 +151,9 @@ attribute vec4 at_tangent;
 
 // Includes //
 #ifdef VX_SUPPORT
+#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
+#include "/lib/vx/blocklightColor.glsl"
+#endif
 #include "/lib/vx/voxelization.glsl"
 
 #if AO_TYPE == 0
@@ -139,7 +162,6 @@ attribute vec4 at_tangent;
 #endif
 
 #ifdef GI
-#include "/lib/vx/giVoxel.glsl"
 #endif
 
 #if defined WAVING_LEAVES || defined WAVING_PLANTS
@@ -157,7 +179,15 @@ void main() {
 	
     // Voxelization //
 	#ifdef VX_SUPPORT
-    if (gl_VertexID % 4 == 0) updateVoxelMap(int(max(mc_Entity.x - 10000, 0)));
+    bool quadSample = (gl_VertexID % 4 == 0);
+    #if defined LOCAL_DIRECT_LIGHTING && LOCAL_OCC_CAPTURE_ALL_VERTICES == 1
+    updateVoxelMap(uint(max(mc_Entity.x - 10000.0, 0.0)), quadSample);
+    #else
+    // A panel needs all four vertices to recover its open/closed position.
+    // Other materials preserve the legacy every-fourth-vertex performance path.
+    uint localId = uint(max(mc_Entity.x - 10000.0, 0.0));
+    if (quadSample || (localId >= 410u && localId <= 415u)) updateVoxelMap(localId, quadSample);
+    #endif
 
 	#if AO_TYPE == 0
 	updateAoLattice();

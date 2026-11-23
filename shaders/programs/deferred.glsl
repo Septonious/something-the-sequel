@@ -52,10 +52,8 @@ uniform sampler2D cloudNoiseSampler;
 uniform float cloudRain;
 #endif
 
-#ifdef SCREEN_SPACE_SHADOWS
-uniform sampler2D colortex9;
-uniform mat4 gbufferProjection;
-#endif
+
+
 
 #if AO_TYPE > 0
 uniform sampler2D colortex10;
@@ -69,7 +67,6 @@ uniform sampler2D colortex14;
 uniform sampler2D colortex15;
 
 uniform usampler3D voxelGiSampler;
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform sampler3D giCacheSampler, giCacheSamplerCopy;
 #endif
 
@@ -136,15 +133,9 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 
 #include "/lib/atmosphere/fog.glsl"
 
-#ifdef SCREEN_SPACE_SHADOWS
-#include "/lib/lighting/screenSpaceShadows.glsl"
-#endif
 
 #ifdef GI
 #include "/lib/vx/voxelization.glsl"
-#include "/lib/vx/giVoxel.glsl"
-#include "/lib/vx/giNormal.glsl"
-#include "/lib/vx/giApply.glsl"
 #endif
 
 // Main //
@@ -200,11 +191,11 @@ void main() {
 		drawCirrusClouds(cirrus, atmosphereColor, worldPos, nViewPos, caveFactor, occlusion);
 		#endif
 
-
+		if (VoU > 0.0) {
 			#ifdef OVERWORLD_NEBULA
 			drawOverworldNebula(color, worldPos, VoU, VoM, blueNoiseDither, caveFactor, nebulaFactor);
 			#endif
-	
+		}
 
 		#ifdef ROUND_SUN_MOON
 		drawSunMoon(color, worldPos, nViewPos, VoU, VoS, VoM, caveFactor, occlusion);
@@ -230,17 +221,6 @@ void main() {
 		float giOcclusion = 0.0;
 		#endif
 
-		#ifdef SCREEN_SPACE_SHADOWS
-		vec3 directLighting = texture2D(colortex9, texCoord).rgb;
-		if (z0 > 0.56 && maxOf(directLighting) > 0.0) {
-			float screenSpaceShadow = getScreenSpaceShadow(viewPos, blueNoiseDither);
-			#ifdef GI
-			giScreenShadow = screenSpaceShadow;
-			#endif
-			if (screenSpaceShadow < 1.0) color = pow(max(pow(color, vec3(2.2)) - directLighting * (1.0 - screenSpaceShadow), vec3(0.0)), vec3(1.0 / 2.2));
-		}
-		#endif
-
 		#if AO_TYPE > 0
 		vec3 occludableLighting = texture2D(colortex10, texCoord).rgb;
 		if (z0 > 0.56 && maxOf(occludableLighting) > 0.0) {
@@ -262,7 +242,6 @@ void main() {
 			#ifdef GI
 			giOcclusion = occlusion / occlusionWeight;
 			#endif
-
 			color = pow(max(pow(color, vec3(2.2)) - occludableLighting * (occlusion / occlusionWeight), vec3(0.0)), vec3(1.0 / 2.2));
 		}
 		#endif

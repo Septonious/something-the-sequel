@@ -9,7 +9,6 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VPS
 #define SHADOW_FILTER_SAMPLES 6 //[6 8]
 #define VPS_BLUR_STRENGTH 0.55 //[0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80]
-//#define SCREEN_SPACE_SHADOWS
 
 // PBR //
 #define GENERATED_EMISSION
@@ -151,36 +150,22 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VL_DAY 1.00 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.10 1.20 1.30 1.40 1.50 1.60 1.70 1.80 1.90 2.00]
 #define VL_MORNING_EVENING 1.50 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.10 1.20 1.30 1.40 1.50 1.60 1.70 1.80 1.90 2.00]
 
-// LPV Fog //
-//#define LPV_FOG
-#define LPV_FOG_STRENGTH 0.75 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
 
-// Floodfill //
+// Local direct lighting with world-space occlusion. No LPV floodfill.
+#define LOCAL_DIRECT_LIGHTING
+#define LOCAL_LIGHT_STRENGTH 2.00 //[0.50 1.00 1.50 2.00 2.50 3.00]
+#define LOCAL_LIGHT_RADIUS 20.0 //[12.0 16.0 18.0 20.0 24.0]
+#define LOCAL_SHADOW_DETAIL_RANGE 10.0 //[6.0 8.0 10.0 12.0 14.0]
+#define LOCAL_SHADOW_SOURCE_RADIUS 0.20 //[0.00 0.08 0.12 0.16 0.20 0.25 0.30 0.40]
+#define LOCAL_LIGHT_DEBUG 0 //[0 1 2 3 4 5 6]
+#define LOCAL_OCC_CAPTURE_ALL_VERTICES 1 //[0 1]
+#define LOCAL_LIGHT_VERTEX_RECEIVER 1 //[0 1]
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
-#define FLOODFILL_BRIGHTNESS 8.00 //[1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00 3.25 3.50 3.75 4.00]
-#define FLOODFILL_RADIUS 1.2 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
 
 //  Ambient Occlusion //
-#define AO_TYPE 0 //[0 1 2]
+#define AO_TYPE 1 //[0 1 2]
 #define AO_STRENGTH 1.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
 
-#define GI
-#define WORLD_SPACE_REFLECTIONS
-#define GI_STRENGTH 2.00 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00]
-#define GI_SUN_BOUNCE 2.00 //[0.00 0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00 3.50 4.00]
-#define GI_COLOR 4.0 //[1.0 1.5 2.0 3.0 4.0 6.0 8.0 12.0 16.0 24.0 32.0]
-#define GI_MULTI_BOUNCE 0.70 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
-#define GI_SKY_SHADOW 1.00 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00]
-#define GI_SCREEN_TRACE
-#define GI_RESOLUTION 2 //[1 2 4]
-#define GI_RAY_RATE 1 //[1 2 4]
-#define GI_REUSE
-#define GI_RAY_STEPS 32 //[16 24 32 48 64]
-#define GI_ACCUMULATION 0.75 //[0.25 0.50 0.75 1.00 1.50 2.00 3.00]
-#define GI_FILTER 1.00 //[0.00 0.50 1.00 2.00 4.00]
-#define GI_LEAF_PASS 0.50 //[0.00 0.25 0.50 0.75 1.00]
-#define GI_CACHE_RANGE 0.20 //[0.00 0.10 0.20 0.30 0.40 0.50 0.75 1.00]
-#define GI_DEBUG 0 //[0 1 2 3 4 5 6 7 8 9 11 12]
 
 // Tonemap //
 #define TONEMAP_CONTRAST 2.8 //[1.0 1.2 1.4 1.6 1.8 2.0 2.2 2.4 2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0]
@@ -443,10 +428,6 @@ const vec3 weatherCol = vec3(WEATHER_RR, WEATHER_RG, WEATHER_RB) / 255.0 * WEATH
 float minOf(vec3 v) { return min(min(v.x, v.y), v.z); }
 float maxOf(vec3 v) { return max(max(v.x, v.y), v.z); }
 
-float giVolumeFade(vec3 worldPos) {
-    return 1.0 - smoothstep(0.75, 1.0, maxOf(abs(worldPos) / (vec3(VOXEL_VOLUME_SIZE, VOXEL_VOLUME_SIZE * 0.5, VOXEL_VOLUME_SIZE) * 0.5)));
-}
-
 float fmix(float a, float b, float t) {
     t = min(max(t, 0.0), 1.0);
     return a + t * (b - a);
@@ -510,30 +491,10 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 #define VX_SUPPORT
 #endif
 
-#if !defined VX_SUPPORT || VOXEL_VOLUME_SIZE > 256
-#undef GI
-#endif
-
-#ifdef GI
-#undef AO_TYPE
-#define AO_TYPE -1
-#endif
-
-#ifndef GI
-#undef WORLD_SPACE_REFLECTIONS
-#endif
 
 #ifdef SPECULAR_HIGHLIGHTS
 #endif
 
-#ifdef LPV_FOG
-#endif
 
 #ifdef VL_COLOR_SHADOWS
-#endif
-
-#ifdef GI_SCREEN_TRACE
-#endif
-
-#ifdef GI_REUSE
 #endif

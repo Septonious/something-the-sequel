@@ -38,7 +38,6 @@ uniform float shadowFade;
 
 uniform sampler2D shadowtex1, colortex12;
 uniform usampler3D voxelGiSampler, voxelBoxSampler, quadPoolSampler, lightGridSampler, voxelSpriteSampler;
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform sampler3D giCacheSampler, giCacheSamplerCopy;
 
 uniform mat4 shadowProjection, shadowModelView;
@@ -73,7 +72,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/util/transformMacros.glsl"
 #include "/lib/util/ToShadow.glsl"
 #include "/lib/vx/voxelization.glsl"
-#include "/lib/vx/giVoxel.glsl"
 
 vec4 giCacheFetch(ivec3 cell) {
     if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return vec4(0.0, 0.0, 0.0, -1.0);
@@ -81,11 +79,7 @@ vec4 giCacheFetch(ivec3 cell) {
     return (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, cell, 0) : texelFetch(giCacheSampler, cell, 0);
 }
 
-#include "/lib/vx/giTrace.glsl"
 #include "/lib/util/ToScreen.glsl"
-#include "/lib/vx/reflectionTrace.glsl"
-#include "/lib/pbr/farProbe.glsl"
-#include "/lib/pbr/farReflection.glsl"
 #endif
 
 vec2 getRainRipples(vec2 pos) {

@@ -1,5 +1,8 @@
+// CAMERA-RELATIVE HELD-LIGHT approximation; no voxel write or DDA ray.
+// This is deliberately independent of the world-space emitter reservoir.
 uniform vec3 relativeEyePosition;
 
+// Combine held items and radial hand-light falloff into the existing block-light sum.
 void getHandLightColor(inout vec3 blockLighting, in vec3 pos) {
     if ((heldItemId >= 1 && heldItemId <= 60) || (heldItemId2 >= 1 && heldItemId2 <= 60)) {
         float handlight = clamp((32.0 - length(pos) * 5.0) * 0.015, 0.0, 1.0);

@@ -67,7 +67,6 @@ uniform mat4 shadowModelView;
 
 #ifdef WORLD_SPACE_REFLECTIONS
 uniform usampler3D voxelGiSampler, voxelBoxSampler, quadPoolSampler, lightGridSampler, voxelSpriteSampler;
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 uniform sampler3D giCacheSampler, giCacheSamplerCopy;
 uniform sampler2D colortex12;
 
@@ -115,7 +114,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/water/waterFog.glsl"
 
 #ifdef GI
-#include "/lib/vx/giApply.glsl"
 #endif
 
 #ifdef OVERWORLD
@@ -131,7 +129,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #ifdef WATER_REFLECTIONS
 #ifdef WORLD_SPACE_REFLECTIONS
 #include "/lib/vx/voxelization.glsl"
-#include "/lib/vx/giVoxel.glsl"
 
 vec4 giCacheFetch(ivec3 cell) {
     if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return vec4(0.0, 0.0, 0.0, -1.0);
@@ -139,12 +136,7 @@ vec4 giCacheFetch(ivec3 cell) {
     return (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, cell, 0) : texelFetch(giCacheSampler, cell, 0);
 }
 
-#include "/lib/vx/giTrace.glsl"
 #include "/lib/util/ToView.glsl"
-#include "/lib/vx/reflectionTrace.glsl"
-#include "/lib/vx/voxelReflection.glsl"
-#include "/lib/pbr/farProbe.glsl"
-#include "/lib/pbr/farReflection.glsl"
 #endif
 
 #include "/lib/atmosphere/skyCapture.glsl"

@@ -66,7 +66,6 @@ uniform sampler2D shadowtex1, shadowcolor0;
 #endif
 
 #if defined LPV_FOG && defined VX_SUPPORT
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 
 #ifdef GI
 uniform sampler3D fogVisibilitySampler;

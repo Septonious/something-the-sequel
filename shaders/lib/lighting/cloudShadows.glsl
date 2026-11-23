@@ -1,3 +1,7 @@
+// CLOUD-SHADOW DOMAIN, independent of the local-light voxelization cube.
+// Project a receiver toward the atmospheric cloud layer, sample large-scale
+// coverage noise, then fade at the *cloud render domain* edge.
+// Neither shadowDistance nor LOCAL_LIGHT_RADIUS should clip this result.
 #ifndef CLOUD_SHADOWS_GLSL
 #define CLOUD_SHADOWS_GLSL
 
@@ -6,6 +10,7 @@
 uniform sampler2D cloudNoiseSampler;
 uniform float cloudRain;
 
+// Translate the cloud density/coverage field into opaque cloud fraction.
 float getCloudShadowCoverage(vec2 noisePos) {
     vec2 coverageUv = noisePos * VC_COVERAGE_SCALE;
 
@@ -18,6 +23,7 @@ float getCloudShadowCoverage(vec2 noisePos) {
     return smoothstep(coverageThreshold - VC_SHADOW_SOFTNESS, coverageThreshold + VC_SHADOW_SOFTNESS, coverageNoise);
 }
 
+// Project the surface point through the sun vector to the cloud altitude.
 float getCloudShadowOcclusion(vec3 worldPos, vec3 lightDirection) {
     float lightHeight = lightDirection.y;
     float cloudHeight = VC_CLOUD_HEIGHT + VC_CLOUD_THICKNESS * VC_CLOUD_BODY_SCALE * 0.35;
@@ -29,9 +35,14 @@ float getCloudShadowOcclusion(vec3 worldPos, vec3 lightDirection) {
     vec2 windDirection = vec2(cos(radians(VC_WIND_ANGLE)), sin(radians(VC_WIND_ANGLE)));
     vec2 noisePos = shadowPos * horizontalScale * VC_SOURCE_SCALE + windDirection * frameTimeCounter * VC_CLOUD_SPEED * 0.02;
 
-    return getCloudShadowCoverage(noisePos);
+    // Cloud shadows are independent of the terrain shadow-map distance. Fade
+    // only at the visible cloud domain boundary, never at the voxel cube.
+    float cloudDistance = length(shadowPos - cameraPosition.xz);
+    float rangeFade = 1.0 - smoothstep(VC_CLOUD_MAX_DISTANCE * 0.80, VC_CLOUD_MAX_DISTANCE, cloudDistance);
+    return getCloudShadowCoverage(noisePos) * rangeFade;
 }
 
+// Scale atmospheric occlusion by sun elevation and the user strength control.
 float getCloudShadow(vec3 worldPos, vec3 lightDirection) {
     float visibility = smoothstep(0.10, 0.22, lightDirection.y) * shadowFade;
     return 1.0 - getCloudShadowOcclusion(worldPos, lightDirection) * VC_SHADOW_STRENGTH * visibility;

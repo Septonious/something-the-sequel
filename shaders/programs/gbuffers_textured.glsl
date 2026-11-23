@@ -122,33 +122,15 @@ void main() {
 
     Fog(albedo.rgb, viewPos, atmosphereColor, 0.0);
 
-    /* DRAWBUFFERS:0 */
+    /* RENDERTARGETS: 0 */
     gl_FragData[0] = albedo;
 
-    #ifdef SCREEN_SPACE_SHADOWS
-    /* DRAWBUFFERS:09 */
-    gl_FragData[1] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #endif
-
     #if AO_TYPE > 0
-    #ifdef SCREEN_SPACE_SHADOWS
-    /* RENDERTARGETS: 0,9,10,11 */
-    gl_FragData[2] = vec4(0.0, 0.0, 0.0, albedo.a);
-    gl_FragData[3] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #else
     /* RENDERTARGETS: 0,10,11 */
     gl_FragData[1] = vec4(0.0, 0.0, 0.0, albedo.a);
     gl_FragData[2] = vec4(0.0, 0.0, 0.0, albedo.a);
     #endif
-    #endif
 
-    #ifdef GI
-    /* RENDERTARGETS: 0,9,10,11,13 */
-    gl_FragData[1] = vec4(0.0, 0.0, 0.0, albedo.a);
-    gl_FragData[2] = vec4(0.0, 0.0, 0.0, albedo.a);
-    gl_FragData[3] = vec4(0.0, 0.0, 0.0, albedo.a);
-    gl_FragData[4] = vec4(0.0, 0.0, 0.0, albedo.a);
-    #endif
 }
 
 #endif

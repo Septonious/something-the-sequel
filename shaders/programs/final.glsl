@@ -55,15 +55,9 @@ const int colortex9Format = R11F_G11F_B10F;
 const int colortex10Format = R11F_G11F_B10F;
 */
 
-#ifdef WORLD_SPACE_REFLECTIONS
-/*
-const int colortex12Format = RGBA32F;
-*/
-#else
 /*
 const int colortex12Format = RG16F;
 */
-#endif
 
 // Includes //
 #if MC_VERSION >= 11200
