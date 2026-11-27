@@ -1,6 +1,5 @@
 // LEGACY SCREEN-SPACE AO: eight directions and three depth samples per ray.
 // This modulates ambient shading only. Depth discontinuities may affect SSAO
-// but do not change the occupancy of a block in directOccSampler.
 // Horizon estimate with depth-derived view-space surface normals.
 float getSSAO(vec3 viewPos, vec2 coord, float angleDither, float stepDither) {
     vec2 viewSize = vec2(textureSize(depthtex0, 0));

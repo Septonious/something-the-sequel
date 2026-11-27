@@ -27,20 +27,10 @@ const float voxelDistance = 256.0;
 #endif
 const float wetnessHalflife = 128.0;
 
-#ifdef GI
-/*
-const int colortex0Format = RGB16F;
-const int colortex11Format = RGBA16;
-const int colortex13Format = RGBA8;
-const int colortex14Format = RGBA32F;
-const int colortex15Format = RGBA32F;
-*/
-#else
 /*
 const int colortex0Format = R11F_G11F_B10F; //Main HDR scene
 const int colortex11Format = R8;
 */
-#endif
 
 /*
 const int colortex1Format = R11F_G11F_B10F; //Tonemapped / final scene

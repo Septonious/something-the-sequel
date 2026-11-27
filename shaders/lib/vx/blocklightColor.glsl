@@ -1,6 +1,5 @@
-// EMITTER MATERIAL PALETTE. These IDs are assigned in block.properties and
-// are separate from the geometric shape IDs stored in directOccSampler.
-// Do not remap a lit/unlit emitter group merely to select a geometry model.
+// Emitter palette: the material IDs in block.properties minus 10000.
+// Preserve state-dependent emission assignments and generated PBR IDs.
 vec3 getBlocklightColor(int id) {
 	vec3 color = vec3(0.0);
 

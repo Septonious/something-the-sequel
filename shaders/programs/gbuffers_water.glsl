@@ -54,9 +54,6 @@ uniform sampler2D depthtex1;
 uniform sampler2D colortex5, colortex6;
 #endif
 
-#ifdef GI
-uniform sampler2D colortex14;
-#endif
 
 uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
@@ -65,15 +62,6 @@ uniform mat4 gbufferModelViewInverse;
 uniform mat4 shadowProjection;
 uniform mat4 shadowModelView;
 
-#ifdef WORLD_SPACE_REFLECTIONS
-uniform usampler3D voxelGiSampler, voxelBoxSampler, quadPoolSampler, lightGridSampler, voxelSpriteSampler;
-uniform sampler3D giCacheSampler, giCacheSamplerCopy;
-uniform sampler2D colortex12;
-
-#if !defined SHADOW_COLOR && !defined VPS
-uniform sampler2D shadowtex1;
-#endif
-#endif
 
 // Global Variables //
 #if defined OVERWORLD
@@ -113,8 +101,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/gbuffersLighting.glsl"
 #include "/lib/water/waterFog.glsl"
 
-#ifdef GI
-#endif
 
 #ifdef OVERWORLD
 #include "/lib/atmosphere/sky.glsl"
@@ -127,17 +113,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #endif
 
 #ifdef WATER_REFLECTIONS
-#ifdef WORLD_SPACE_REFLECTIONS
-#include "/lib/vx/voxelization.glsl"
-
-vec4 giCacheFetch(ivec3 cell) {
-    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return vec4(0.0, 0.0, 0.0, -1.0);
-
-    return (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, cell, 0) : texelFetch(giCacheSampler, cell, 0);
-}
-
-#include "/lib/util/ToView.glsl"
-#endif
 
 #include "/lib/atmosphere/skyCapture.glsl"
 #include "/lib/pbr/raytracer.glsl"
@@ -200,15 +175,6 @@ void main() {
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, 0.0, emission, 0.6, 0.0, 0.0, 0.0);
 
-    #ifdef GI
-    if (water < 0.5) {
-        float giFade = giVolumeFade(worldPos);
-
-        vec4 gi = texture2D(colortex14, screenPos.xy);
-
-        albedo.rgb = pow(max(pow(albedo.rgb, vec3(2.2)) + giReceptor * giReceptor * ((1.0 - giSurface.y) * giAmbientDelta(gi, giSurface.x, giFade, viewPos) + giSurface.y * gi.rgb * GI_STRENGTH), vec3(0.0)), vec3(1.0 / 2.2));
-    }
-    #endif
 
     #if defined OVERWORLD
 	float atmosphereHardMixFactor = 0.0;

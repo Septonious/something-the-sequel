@@ -1,3 +1,3 @@
 #version 430 compatibility
 #define OVERWORLD
-#include "/programs/localLightSelect.glsl"
+#include "/programs/shadowcomp.glsl"

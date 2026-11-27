@@ -1,7 +1,6 @@
 // CLOUD-SHADOW DOMAIN, independent of the local-light voxelization cube.
 // Project a receiver toward the atmospheric cloud layer, sample large-scale
 // coverage noise, then fade at the *cloud render domain* edge.
-// Neither shadowDistance nor LOCAL_LIGHT_RADIUS should clip this result.
 #ifndef CLOUD_SHADOWS_GLSL
 #define CLOUD_SHADOWS_GLSL
 

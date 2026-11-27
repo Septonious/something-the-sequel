@@ -151,16 +151,14 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VL_MORNING_EVENING 1.50 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.10 1.20 1.30 1.40 1.50 1.60 1.70 1.80 1.90 2.00]
 
 
-// Local direct lighting with world-space occlusion. No LPV floodfill.
-#define LOCAL_DIRECT_LIGHTING
-#define LOCAL_LIGHT_STRENGTH 2.00 //[0.50 1.00 1.50 2.00 2.50 3.00]
-#define LOCAL_LIGHT_RADIUS 20.0 //[12.0 16.0 18.0 20.0 24.0]
-#define LOCAL_SHADOW_DETAIL_RANGE 10.0 //[6.0 8.0 10.0 12.0 14.0]
-#define LOCAL_SHADOW_SOURCE_RADIUS 0.20 //[0.00 0.08 0.12 0.16 0.20 0.25 0.30 0.40]
-#define LOCAL_LIGHT_DEBUG 0 //[0 1 2 3 4 5 6]
-#define LOCAL_OCC_CAPTURE_ALL_VERTICES 1 //[0 1]
-#define LOCAL_LIGHT_VERTEX_RECEIVER 1 //[0 1]
+// Regular colored block-light propagation (LPV). No ray tracing.
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
+#define FLOODFILL_BRIGHTNESS 8.00 //[1.00 2.00 3.00 4.00 5.00 6.00 7.00 8.00 9.00 10.00]
+#define FLOODFILL_RADIUS 1.2 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
+
+// Light contribution to volumetric fog
+//#define LPV_FOG
+#define LPV_FOG_STRENGTH 0.75 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
 
 //  Ambient Occlusion //
 #define AO_TYPE 1 //[0 1 2]

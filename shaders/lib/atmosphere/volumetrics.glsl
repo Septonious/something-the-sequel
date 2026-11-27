@@ -1,10 +1,6 @@
-// VOLUMETRIC DIRECTIONAL LIGHT (SUN/MOON), NOT LPV BLOCK-LIGHT FOG.
-// Marches a depth-clipped view ray through the directional shadow map and
-// cloud coverage. In this final baseline, local-emitter volumetric fog is
-// deliberately not active: do not mistake directional rays for LPV fog.
 // One depth-clipped, front-to-back raymarch for directional shafts and voxel fog.
 // Both sample grids are independent of scene depth; geometry only clips their intervals.
-#ifdef VL
+#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
 
 #ifdef VL
 // Convert an optical-distance sample into warped shadow-map coordinates.
@@ -42,6 +38,16 @@ void computeVolumetricLight(inout vec3 color, float dither) {
     vec3 nWorldPos = normalize(mat3(gbufferModelViewInverse) * nViewPos);
     float sceneDistance = depth >= 0.999999 ? 1.0e10 : length(ToView(vec3(texCoord, depth)));
     if (sceneDistance <= 0.01) return;
+    #if defined LPV_FOG && defined VX_SUPPORT
+    vec3 voxelHalfSize = voxelVolumeSize * 0.5;
+    vec3 voxelExit = (voxelHalfSize - sign(nWorldPos) * fract(cameraPosition)) / max(abs(nWorldPos), vec3(0.0001));
+    float voxelMaxDistance = max(minOf(voxelExit), 0.0);
+    float fogRatio = exp2(log2(voxelMaxDistance + 1.0) / VL_SAMPLES);
+    float fogSegmentStart = 0.0, fogSegmentEnd = 0.0;
+    vec3 scatteredFog = vec3(0.0);
+    float fogTransmittance = 1.0;
+    float lpvFogIntensity = LPV_FOG_STRENGTH * mix(1.0, clamp(3.0 - eBS * sqrt(timeBrightness) - caveFactor * 2.0 + wetness * eBS, 0.75, 2.0), closedSpaceFactor);
+    #endif
 
 
     #ifdef VL
@@ -57,7 +63,9 @@ void computeVolumetricLight(inout vec3 color, float dither) {
     vec3 vlColor = fmix(lightCol, nSkyColor, timeBrightness * 0.75) * vlIntensity * 0.10;
     bool doVolumetricLight = maxOf(vlColor) > 0.0001;
 
+    #if !defined LPV_FOG || !defined VX_SUPPORT
     if (!doVolumetricLight) return;
+    #endif
 
     #if defined VC_SHADOWS && defined VOLUMETRIC_CLOUDS
     const float vlMaxDistance = 512.0;
@@ -148,9 +156,31 @@ void computeVolumetricLight(inout vec3 color, float dither) {
         }
         vlSegmentStart = vlSegmentEnd;
         #endif
+        #if defined LPV_FOG && defined VX_SUPPORT
+        fogSegmentEnd = (fogSegmentEnd + 1.0) * fogRatio - 1.0;
+        float fogEnd = min(fogSegmentEnd, min(sceneDistance, voxelMaxDistance));
+        float fogStepLength = max(fogEnd - fogSegmentStart, 0.0);
+        if (fogStepLength > 0.0) {
+            vec3 fogWorldPos = nWorldPos * mix(fogSegmentStart, fogEnd, sampleJitter);
+            vec3 voxelPos = worldToVoxel(fogWorldPos) / voxelVolumeSize;
+            if (all(greaterThan(voxelPos, vec3(0.001))) && all(lessThan(voxelPos, vec3(0.999)))) {
+                vec3 lightVolume = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, voxelPos).rgb : texture3D(floodfillSampler, voxelPos).rgb;
+                vec3 lpv = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
+                float volumeFade = clamp(maxOf(abs(fogWorldPos) / voxelHalfSize), 0.0, 1.0);
+                float localDensity = 0.01 * (1.0 - volumeFade * volumeFade) * smoothstep(0.005, 0.10, maxOf(lpv));
+                float fogStepTransmittance = exp(-localDensity * fogStepLength);
+                scatteredFog += fogTransmittance * (1.0 - fogStepTransmittance) * lpv * lpvFogIntensity;
+                fogTransmittance *= fogStepTransmittance;
+            }
+        }
+        fogSegmentStart = fogSegmentEnd;
+        #endif
 
     }
 
+    #if defined LPV_FOG && defined VX_SUPPORT
+    color = color * mix(1.0, fogTransmittance, visibility) + scatteredFog * visibility;
+    #endif
     #ifdef VL
     color += scatteredLight * visibility;
     #endif

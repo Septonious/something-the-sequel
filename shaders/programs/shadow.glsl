@@ -1,9 +1,3 @@
-// SHADOW CAPTURE ENTRY POINT. Both standard sunlight shadow rendering and
-// occupancy capture use this pass, but they have different visibility rules.
-// DDA image writes occur in VSH before the alpha test of FSH. Face culling,
-// block-entity submission and shadow.culling can therefore affect occupancy.
-// State-bearing panel blocks always capture every vertex, regardless of the
-// general LOCAL_OCC_CAPTURE_ALL_VERTICES performance toggle.
 #include "/lib/common.glsl"
 
 #define SHADOW
@@ -40,7 +34,7 @@ float eBS = eyeBrightnessSmooth.y / 240.0;
 
 // Main //
 // Fragment: atlas alpha/shadow color. Vertex: coordinate transforms and
-// shadow-pass voxel material/geometry capture.
+// shadow-pass LPV material capture.
 void main() {
     vec4 albedo = texture2D(tex, texCoord) * color;
 
@@ -85,13 +79,6 @@ flat out int mat;
 uniform int renderStage;
 
 writeonly uniform uimage3D voxel_img;
-#ifdef LOCAL_DIRECT_LIGHTING
-// R32UI packs the *canonical shape class* (high byte) with observed face
-// vertex coverage (low bits). Atomic OR is used ONLY for movable panels.
-// Unlike per-vertex imageStore, the result is independent of vertex order.
-layout(r32ui) uniform uimage3D direct_occ_img;
-layout(r32ui) uniform uimage3D direct_lights_img;
-#endif
 
 
 #if AO_TYPE == 0
@@ -99,35 +86,14 @@ layout(r32ui) uniform uimage3D ao_lattice_img;
 #endif
 #endif
 
-#ifdef GI
-uniform int frameCounter;
-uniform int blockEntityId;
-
-uniform vec3 previousCameraPosition;
-
-uniform sampler2D tex;
-
-uniform usampler3D voxelShapeSampler, voxelShapeSamplerCopy;
-
-writeonly uniform uimage3D voxel_shape_img, voxel_shape_img_copy;
-
-layout(r32ui) uniform uimage3D voxel_gi_img;
-layout(r32ui) uniform uimage3D quad_hash_img;
-
-#ifdef WORLD_SPACE_REFLECTIONS
-layout(r32ui) uniform uimage3D voxel_sprite_img;
-#endif
-#endif
 
 #ifndef VX_SUPPORT
 uniform int renderStage;
 #endif
 
-#ifndef GI
 uniform sampler2D tex;
-#endif
 
-#if defined WAVING_LEAVES || defined WAVING_PLANTS || (defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT)
+#if defined WAVING_LEAVES || defined WAVING_PLANTS
 uniform float frameTimeCounter;
 #endif
 
@@ -151,9 +117,6 @@ attribute vec4 at_tangent;
 
 // Includes //
 #ifdef VX_SUPPORT
-#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-#include "/lib/vx/blocklightColor.glsl"
-#endif
 #include "/lib/vx/voxelization.glsl"
 
 #if AO_TYPE == 0
@@ -161,8 +124,6 @@ attribute vec4 at_tangent;
 #endif
 #endif
 
-#ifdef GI
-#endif
 
 #if defined WAVING_LEAVES || defined WAVING_PLANTS
 #include "/lib/pbr/waving.glsl"
@@ -179,24 +140,14 @@ void main() {
 	
     // Voxelization //
 	#ifdef VX_SUPPORT
-    bool quadSample = (gl_VertexID % 4 == 0);
-    #if defined LOCAL_DIRECT_LIGHTING && LOCAL_OCC_CAPTURE_ALL_VERTICES == 1
-    updateVoxelMap(uint(max(mc_Entity.x - 10000.0, 0.0)), quadSample);
-    #else
-    // A panel needs all four vertices to recover its open/closed position.
-    // Other materials preserve the legacy every-fourth-vertex performance path.
-    uint localId = uint(max(mc_Entity.x - 10000.0, 0.0));
-    if (quadSample || (localId >= 410u && localId <= 415u)) updateVoxelMap(localId, quadSample);
-    #endif
+    // One submitted vertex per quad captures the block center, before shadow-map face rejection.
+    if ((gl_VertexID & 3) == 0) updateVoxelMap(uint(max(mc_Entity.x - 10000.0, 0.0)));
 
 	#if AO_TYPE == 0
 	updateAoLattice();
 	#endif
 	#endif
 
-	#ifdef GI
-	updateVoxelGi(mat, lmCoord.y);
-	#endif
 
 	//Color & Position //
 	color = gl_Color;
@@ -217,9 +168,6 @@ void main() {
 	gl_Position.xy *= 1.0 / distortFactor;
 	gl_Position.z = gl_Position.z * 0.2;
 
-	#ifdef GI
-	if (renderStage == MC_RENDER_STAGE_ENTITIES && blockEntityId != 0) gl_Position = vec4(-10.0, -10.0, -10.0, 1.0);
-	#endif
 
 	if ((renderStage == MC_RENDER_STAGE_TERRAIN_SOLID || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED) && (gl_NormalMatrix * gl_Normal).z < -0.001 && textureQueryLevels(tex) > 4 && texture2DLod(tex, mc_midTexCoord.xy, 4.0).a > 0.999) gl_Position = vec4(-10.0, -10.0, -10.0, 1.0);
 }

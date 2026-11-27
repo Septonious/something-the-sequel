@@ -1,8 +1,6 @@
-// SURFACE AMBIENT OCCLUSION LATTICE — independent of local DDA block shadows.
 // Shadow vertex stage writes available face-corner AO; GBuffers samples four
 // neighboring lattice cells to smoothly interpolate the cached AO values.
 // Input: shadow-pass normals/vertex alpha. Output: material AO multiplier.
-// Do not change its image layout to fix local DDA corner leaks.
 const ivec3 aoLatticeSize = ivec3(96, 64, 96);
 
 #ifdef SHADOW

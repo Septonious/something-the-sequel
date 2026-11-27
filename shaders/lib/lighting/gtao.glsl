@@ -12,8 +12,6 @@ int lpvPopcount32(uint bits) {
     bits += bits >> 16u;
     return int(bits & 63u);
 }
-
-// Return approximate ambient visibility; never use this as a DDA hard-shadow test.
 float getGTAO(vec3 viewPos, vec2 coord, float sliceDither, float stepDither) {
     vec2 viewSize = vec2(textureSize(depthtex0, 0));
     vec2 pixelSize = 1.0 / viewSize;

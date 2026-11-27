@@ -32,16 +32,6 @@ uniform sampler2D noisetex;
 uniform mat4 gbufferProjection, gbufferProjectionInverse;
 uniform mat4 gbufferModelView, gbufferModelViewInverse;
 
-#ifdef WORLD_SPACE_REFLECTIONS
-uniform float near;
-uniform float shadowFade;
-
-uniform sampler2D shadowtex1, colortex12;
-uniform usampler3D voxelGiSampler, voxelBoxSampler, quadPoolSampler, lightGridSampler, voxelSpriteSampler;
-uniform sampler3D giCacheSampler, giCacheSamplerCopy;
-
-uniform mat4 shadowProjection, shadowModelView;
-#endif
 
 const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
 float fractTimeAngle = fract(timeAngle - 0.25);
@@ -55,9 +45,6 @@ float caveFactor = mix(clamp((cameraPosition.y - 56.0) / 16.0, float(sign(isEyeI
 float sunVisibility = clamp((dot( sunVec, upVec) + 0.15) * 3.0, 0.0, 1.0);
 float moonVisibility = clamp((dot(-sunVec, upVec) + 0.15) * 3.0, 0.0, 1.0);
 
-#ifdef WORLD_SPACE_REFLECTIONS
-vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.0);
-#endif
 
 #include "/lib/util/bayerDithering.glsl"
 #include "/lib/util/ToView.glsl"
@@ -68,19 +55,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/atmosphere/fog.glsl"
 #include "/lib/pbr/raytracer.glsl"
 
-#ifdef WORLD_SPACE_REFLECTIONS
-#include "/lib/util/transformMacros.glsl"
-#include "/lib/util/ToShadow.glsl"
-#include "/lib/vx/voxelization.glsl"
-
-vec4 giCacheFetch(ivec3 cell) {
-    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(voxelVolumeSize)))) return vec4(0.0, 0.0, 0.0, -1.0);
-
-    return (frameCounter & 1) == 0 ? texelFetch(giCacheSamplerCopy, cell, 0) : texelFetch(giCacheSampler, cell, 0);
-}
-
-#include "/lib/util/ToScreen.glsl"
-#endif
 
 vec2 getRainRipples(vec2 pos) {
 	vec2 cell = floor(pos);
@@ -127,57 +101,12 @@ void main() {
 		vec4 reflectPos = rayTrace(depthtex0, viewPos, normal, dither, fresnel, border, 6, 30, 0.1, 2.0);
 		border = clamp(13.333 * (1.0 - border), 0.0, 1.0);
 
-		#ifdef WORLD_SPACE_REFLECTIONS
-		if (border > 0.0) {
-			float reflectDepth = texture2D(depthtex0, reflectPos.xy).r;
-			vec3 reflectEnd = ToView(reflectPos.xyz);
-			float reflectBehind = ToView(vec3(reflectPos.xy, reflectDepth)).z - reflectEnd.z;
-
-			border *= float(reflectDepth < 1.0 && reflectBehind > -0.25 && reflectBehind < 0.25 + 0.5 * length(reflectEnd - viewPos));
-		}
-		#endif
 
 		vec3 reflectedViewPos = reflect(nViewPos, normal);
 		float reflectedHardMixFactor = 0.0;
 		vec3 reflectedWorldPos = mat3(gbufferModelViewInverse) * reflectedViewPos;
 		vec3 reflection = (reflectedWorldPos.y > 0.0 ? getSkyCapture(reflectedWorldPos) : getAtmosphere(reflectedViewPos, reflectedWorldPos, reflectedHardMixFactor)) * (1.0 - blindFactor);
 
-		#ifdef WORLD_SPACE_REFLECTIONS
-		vec3 worldReflection = normalize(mat3(gbufferModelViewInverse) * reflectedViewPos);
-
-		if (border < 1.0 && worldReflection.y > 0.0) {
-			ivec3 hitCell, hitFace;
-			float traceDistance;
-			uint hitWord;
-			vec3 voxelOrigin = worldToVoxel(worldPos) + vec3(0.0, 0.05, 0.0);
-
-			if (voxelReflectionHit(voxelOrigin, worldReflection, hitCell, hitFace, traceDistance, hitWord)) {
-				vec2 screenUv;
-				float screenWeight = voxelHitScreen(depthtex0, voxelOrigin + worldReflection * traceDistance, hitFace, screenUv);
-
-				reflection = pow(giHitRadiance(hitCell, hitFace, voxelOrigin + worldReflection * traceDistance, hitWord, mat3(gbufferModelViewInverse) * lightVec, 1.0) + giPassLight, vec3(1.0 / 2.2)) * (1.0 - blindFactor);
-
-				if (screenWeight < 1.0) {
-					vec3 hitWorldPos = voxelToWorld(voxelOrigin + worldReflection * traceDistance);
-					vec3 hitViewPos = mat3(gbufferModelView) * hitWorldPos + gbufferModelView[3].xyz;
-					float hitHardMixFactor = 0.0;
-
-					Fog(reflection, hitViewPos, getAtmosphere(hitViewPos, hitWorldPos, hitHardMixFactor), z0);
-				}
-
-				if (screenWeight > 0.0) reflection = mix(reflection, texture2D(colortex0, screenUv).rgb, screenWeight);
-			} else {
-				bool farGeometry;
-				vec3 farHit = farReflectionTrace(depthtex0, viewPos, reflectedViewPos, max(traceDistance, 4.0), dither, farGeometry);
-				if (farHit.z > 0.0) reflection = mix(reflection, texture2D(colortex0, farHit.xy).rgb, farHit.z);
-
-				if (farHit.z == 0.0 || !farGeometry) {
-					vec4 probeHit = farProbeTrace(worldPos, worldReflection, max(traceDistance, 4.0), dither);
-					reflection = mix(reflection, probeHit.rgb, probeHit.a);
-				}
-			}
-		}
-		#endif
 
 		#if MC_VERSION >= 11900
 		reflection *= 1.0 - darknessFactor;

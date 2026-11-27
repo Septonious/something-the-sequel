@@ -1,9 +1,3 @@
-// FINAL MATERIAL LIGHTING MIXER.
-// - Preserves generated PBR (normal/specular/emission) and independent skylight.
-// - Receives local DDA illumination from subvoxelLocalLight.glsl for opaque
-//   terrain/block-entity/entity surfaces, in addition to sun and ambient light.
-// - Uses geometric normal to position DDA rays; PBR shading normal is separate.
-// - Directional shadow-map, cloud shadows and SSAO/GTAO are separate systems.
 #ifdef VC_SHADOWS
 #if defined OVERWORLD && defined VOLUMETRIC_CLOUDS && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES || defined GBUFFERS_TEXTURED || defined GBUFFERS_WATER)
 #include "/lib/lighting/cloudShadows.glsl"
@@ -12,10 +6,6 @@
 
 vec3 directLighting = vec3(0.0);
 vec3 occludableLighting = vec3(0.0);
-#ifdef GI
-vec3 giReceptor = vec3(0.0);
-vec2 giSurface = vec2(0.0);
-#endif
 
 // Material shading entry: keep its energy/emission math when altering occluder IDs.
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
@@ -39,29 +29,27 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     NoL = pow(NoL, 1.0 + float(subsurface > 0.5) * 0.5);
     #endif
 
-    // Block light: the world-space renderer supplies all non-entity local illumination.
-    // Keep vanilla block light on entities; preserve the sky lightmap independently.
-    #ifdef GBUFFERS_ENTITIES
+    // Vanilla block light remains the fallback outside the LPV domain and on non-LPV render paths.
     float blockLightMap = pow6(lightmap.x * lightmap.x) * 2.0 + max(lightmap.x - 0.05, 0.0);
-          blockLightMap *= blockLightMap * 0.5;
+    blockLightMap *= blockLightMap * 0.5;
     vec3 blockLighting = blockLightCol * blockLightMap;
     #ifdef OVERWORLD
-         blockLighting *= 1.0 - pow4(lightmap.y) * 0.75;
-    #endif
-    #else
-    float blockLightMap = 0.0;
-    vec3 blockLighting = vec3(0.0);
+    blockLighting *= 1.0 - pow4(lightmap.y) * 0.75;
     #endif
 
-    #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
-    // Receiver geometry must not depend on perturbed foliage/PBR shading normals.
-    vec3 localGeometricNormal = normalize(mat3(gbufferModelViewInverse) * normal);
-    #if LOCAL_LIGHT_VERTEX_RECEIVER == 1
-    vec3 localDirectLighting = getLocalDirectLighting(localLightReceiver, localGeometricNormal, emissionMask);
-    #else
-    vec3 localDirectLighting = getLocalDirectLighting(worldPos, localGeometricNormal, emissionMask);
-    #endif
-    blockLighting += localDirectLighting;
+    // Historical LPV surface lighting: sample the propagated color in front of the surface.
+    #if !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT
+    vec3 voxelPos = worldToVoxel(worldPos);
+    float floodfillFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
+    if (isInsideVoxelVolume(voxelPos) && emissionMask < 0.001) {
+        vec3 voxelSamplePos = clamp((voxelPos + worldNormal) / voxelVolumeSize, 0.0, 1.0);
+        vec3 lightVolume = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, voxelSamplePos).rgb : texture3D(floodfillSampler, voxelSamplePos).rgb;
+        vec3 voxelLighting = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
+        #ifdef GBUFFERS_ENTITIES
+        voxelLighting += pow16(lightmap.x) * blockLightCol;
+        #endif
+        blockLighting = mix(blockLighting, voxelLighting * FLOODFILL_BRIGHTNESS, (1.0 - floodfillFade * floodfillFade) * 0.95);
+    }
     #endif
 
     //Shadow Calculations
@@ -162,18 +150,12 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     float rainFactor = 1.0 - wetness * 0.5;
     float skyLight = lightmap.y;
 
-    #ifdef GI
-    skyLight = mix(pow(skyLight, 4.5), skyLight, giVolumeFade(worldPos));
-    #endif
 
     vec3 ambientLighting = ambientCol * skyLight * (1.0 - VoL * 0.5);
     vec3 sceneLighting = mix(ambientLighting, lightCol * (0.15 + lightmap.y * 0.85), shadow * rainFactor * shadowFade);
          sceneLighting *= 1.0 + sss * shadow;
     vec3 directSceneLighting = sceneLighting - ambientLighting;
 
-    #ifdef GI
-    giSurface = vec2(vanillaDiffuse * skyLight, clamp(maxOf(shadow * rainFactor * shadowFade), 0.0, 1.0));
-    #endif
     #elif defined END
     vec3 sceneLighting = mix(endAmbientCol, endLightCol, shadow) * 0.25;
     vec3 directSceneLighting = sceneLighting - endAmbientCol * 0.25;
@@ -244,9 +226,6 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
 
     albedo.rgb = pow(albedo.rgb, vec3(2.2));
 
-    #ifdef GI
-    giReceptor = sqrt(albedo.rgb * (1.0 - metalness));
-    #endif
 
     vec3 diffuseAlbedo = albedo.rgb * (1.0 - metalness);
          diffuseAlbedo *= sceneLighting + blockLighting + emission * EMISSION_STRENGTH + lightningFlash;
@@ -255,13 +234,7 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     vec3 finalColor = diffuseAlbedo + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
     directLighting = albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
     occludableLighting = albedo.rgb * (1.0 - metalness) * (sceneLighting - directSceneLighting + blockLighting
-        #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
-        - localDirectLighting
-        #endif
     ) * vanillaDiffuse;
 
     albedo.rgb = pow(max(finalColor, vec3(0.0)), vec3(1.0 / 2.2));
-    #if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT && LOCAL_LIGHT_DEBUG > 0 && (defined GBUFFERS_TERRAIN || defined GBUFFERS_BLOCK || defined GBUFFERS_ENTITIES)
-    albedo.rgb = pow(localLightDebugColor, vec3(1.0 / 2.2));
-    #endif
 }

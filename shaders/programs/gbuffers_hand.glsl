@@ -33,7 +33,7 @@ uniform vec4 lightningBoltPosition;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform usampler3D voxelSampler;
+uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 #endif
 
 uniform mat4 gbufferProjectionInverse;

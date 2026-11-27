@@ -1,7 +1,5 @@
-// DIRECTIONAL SUN/MOON SHADOW MAP — not the local-emitter DDA tracer.
 // Shadowmap PCSS/VPS sampling, blocker search and fallback lightmap shading.
-// The shadow pass also hosts voxel capture, but these shadowtex samplers are
-// independent of the custom integer directOccSampler used for colored lights.
+// These samplers serve directional shadow-map lighting.
 uniform sampler2DShadow shadowtex0;
 
 #if defined SHADOW_COLOR || defined VPS

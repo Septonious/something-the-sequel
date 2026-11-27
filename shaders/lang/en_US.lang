@@ -139,26 +139,23 @@ option.EMISSIVE_GOLD_ORE=Emissive Gold Ore
 option.EMISSIVE_IRON_ORE=Emissive Iron Ore
 
 screen.LIGHTING=Lighting
-screen.LIGHTING.comment=Sunlight and shadows, bounced light, and light from torches and other glowing blocks.
+screen.LIGHTING.comment=Sunlight, shadows, ambient occlusion and colored block lighting.
 option.VOXEL_VOLUME_SIZE=Voxel Range
-option.VOXEL_VOLUME_SIZE.comment=How far around you the world is copied into voxels for Global Illumination, block lighting and World-Space Reflections. Reaches half as far up and down. Global Illumination needs 128 blocks or less. §c[-]§r Higher values greatly decrease performance.
+option.VOXEL_VOLUME_SIZE.comment=Horizontal size of the colored-light propagation volume. Its vertical size is half as large. §c[-]§r Higher values greatly decrease performance.
 value.VOXEL_VOLUME_SIZE.128=64 Blocks
 value.VOXEL_VOLUME_SIZE.192=96 Blocks
 value.VOXEL_VOLUME_SIZE.256=128 Blocks
 value.VOXEL_VOLUME_SIZE.384=192 Blocks
 value.VOXEL_VOLUME_SIZE.512=256 Blocks
 
-option.GI=Global Illumination
-option.GI.comment=Traces rays through a voxel copy of the world around you, so light bounces between surfaces and roofs and walls block sky light. Needs a Voxel Range of 128 blocks or less. §c[-]§r Greatly decreases performance.
 option.AO_TYPE=Ambient Occlusion
-option.AO_TYPE.comment=Darkens corners and creases. Only used while Global Illumination is off, which does this by itself. Vanilla AO is free, SSAO is fast, GTAO is the most accurate and the slowest.
+option.AO_TYPE.comment=Darkens corners and creases. Vanilla AO is free, SSAO is fast, GTAO is the most accurate and the slowest.
 value.AO_TYPE.0=Vanilla AO
 value.AO_TYPE.1=SSAO
 value.AO_TYPE.2=GTAO
 option.AO_STRENGTH=AO Strength
-option.AO_STRENGTH.comment=How dark Ambient Occlusion makes corners and creases. Only used while Global Illumination is off.
+option.AO_STRENGTH.comment=How dark Ambient Occlusion makes corners and creases.
 
-suffix.GI_ACCUMULATION=s
 
 screen.SHADOWS=Direct Lighting
 screen.SHADOWS.comment=Light that comes straight from the sun and moon, and the shadows it casts.
@@ -411,24 +408,9 @@ screen.OTHER=Other
 option.WAVING_PLANTS=Waving Plants
 option.WAVING_LEAVES=Waving Leaves
 
-option.LOCAL_DIRECT_LIGHTING=World-Space Local Lights
-option.LOCAL_DIRECT_LIGHTING.comment=Separate direct colored lights with stable world-space solid and sub-voxel shadows; experimental.
-option.LOCAL_LIGHT_STRENGTH=Direct Light Strength
-option.LOCAL_LIGHT_RADIUS=Local Light Radius
-option.LOCAL_SHADOW_SOURCE_RADIUS=Light Source Size
-option.LOCAL_SHADOW_SOURCE_RADIUS.comment=Physically based soft shadow edges from light source size. Larger sources produce wider penumbrae farther from blockers. Zero keeps hard shadows.
-option.LOCAL_SHADOW_DETAIL_RANGE=Fine Shadow Detail Distance
-option.LOCAL_LIGHT_DEBUG=Local Light Debug
-option.LOCAL_LIGHT_DEBUG.comment=1: source count, 2: unshadowed light, 3: shaded light, 4: source capture, 5: compute dispatch, 6: opaque voxel occupancy (red=missing, green=solid, blue=partial).
-value.LOCAL_LIGHT_DEBUG.0=Off
-value.LOCAL_LIGHT_DEBUG.1=Source Count
-value.LOCAL_LIGHT_DEBUG.2=Before Visibility
-value.LOCAL_LIGHT_DEBUG.3=After Visibility
-value.LOCAL_LIGHT_DEBUG.4=Raw Source Capture
-value.LOCAL_LIGHT_DEBUG.5=Compute Dispatch
-value.LOCAL_LIGHT_DEBUG.6=Receiver Occupancy
-option.LOCAL_OCC_CAPTURE_ALL_VERTICES=Complete Occluder Capture
-option.LOCAL_OCC_CAPTURE_ALL_VERTICES.comment=Experimental: write the DDA occupancy map from every submitted shadow vertex (rather than one in four). May increase shadow-pass cost; does not bypass Iris chunk culling.
-value.LOCAL_OCC_CAPTURE_ALL_VERTICES.0=Legacy (1 in 4)
-value.LOCAL_OCC_CAPTURE_ALL_VERTICES.1=Full Vertex Capture
-option.LOCAL_SHADOW_DETAIL_RANGE.comment=Distance from the receiver along the shadow ray that uses quarter-block subvoxels for partial shapes; beyond this, half-block approximations are used. Fence shapes remain analytic.
+option.FLOODFILL_BRIGHTNESS=Colored Light Brightness
+option.FLOODFILL_RADIUS=Colored Light Spread
+screen.LPV_FOG_CONFIG=Light Contribution to Volumetric Fog
+option.LPV_FOG=Light Contribution to Volumetric Fog
+option.LPV_FOG_STRENGTH=Light Fog Strength
+option.LPV_FOG.comment=Samples the same propagated colored-light volume as surface lighting.

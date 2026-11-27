@@ -7,9 +7,6 @@
 // VSH Data //
 in vec4 color;
 in vec3 normal;
-#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-in vec3 localLightReceiver;
-#endif
 in vec2 texCoord, lmCoord;
 
 // Uniforms //
@@ -38,7 +35,7 @@ uniform vec4 entityColor;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform usampler3D voxelSampler;
+uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 #endif
 
 uniform mat4 gbufferProjectionInverse;
@@ -87,7 +84,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 
 #include "/lib/lighting/lightning.glsl"
 #include "/lib/lighting/shadows.glsl"
-#include "/lib/lighting/subvoxelLocalLight.glsl"
 #include "/lib/lighting/gbuffersLighting.glsl"
 
 // Main //
@@ -140,9 +136,6 @@ void main() {
 // VSH Data //
 out vec4 color;
 out vec3 normal;
-#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-out vec3 localLightReceiver;
-#endif
 out vec2 texCoord, lmCoord;
 
 // Uniforms //
@@ -175,9 +168,6 @@ void main() {
 	//Position
 	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;
 
-	#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-    localLightReceiver = position.xyz;
-    #endif
 	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 
 	//TAA jittering

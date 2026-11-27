@@ -66,10 +66,7 @@ uniform sampler2D shadowtex1, shadowcolor0;
 #endif
 
 #if defined LPV_FOG && defined VX_SUPPORT
-
-#ifdef GI
-uniform sampler3D fogVisibilitySampler;
-#endif
+uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 #endif
 
 // Global Variables //
@@ -156,9 +153,6 @@ void main() {
     #endif
 
     vec3 color = texture2D(colortex0, sceneCoord).rgb;
-    #ifdef GI
-         color = max(color, vec3(0.0));
-    #endif
          color = pow(color, vec3(2.2));
 
     #ifdef WATER_FOG

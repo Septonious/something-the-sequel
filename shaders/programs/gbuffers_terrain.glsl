@@ -7,9 +7,6 @@
 // VSH Data //
 in vec4 color;
 in vec3 normal;
-#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-in vec3 localLightReceiver;
-#endif
 in vec2 texCoord, lmCoord;
 flat in int mat;
 
@@ -41,7 +38,7 @@ uniform vec4 lightningBoltPosition;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform usampler3D voxelSampler;
+uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 
 #if AO_TYPE == 0
 in float aoFull;
@@ -101,7 +98,6 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #include "/lib/lighting/aoLattice.glsl"
 #endif
 
-#include "/lib/lighting/subvoxelLocalLight.glsl"
 #include "/lib/lighting/gbuffersLighting.glsl"
 
 #ifdef GENERATED_EMISSION
@@ -203,9 +199,6 @@ void main() {
 // VSH Data //
 out vec4 color;
 out vec3 normal;
-#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-out vec3 localLightReceiver;
-#endif
 out vec2 texCoord, lmCoord;
 flat out int mat;
 
@@ -272,9 +265,6 @@ void main() {
 	position.xyz = getWavingBlocks(position.xyz, istopv, lmCoord.y);
 	#endif
 
-	#if defined LOCAL_DIRECT_LIGHTING && defined VX_SUPPORT
-    localLightReceiver = position.xyz;
-    #endif
 	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 
 	//TAA jittering

@@ -1,4 +1,3 @@
-// CAMERA-RELATIVE HELD-LIGHT approximation; no voxel write or DDA ray.
 // This is deliberately independent of the world-space emitter reservoir.
 uniform vec3 relativeEyePosition;
 
