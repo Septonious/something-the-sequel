@@ -8,7 +8,7 @@
 // Varyings //
 in vec2 texCoord;
 
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
 flat in float closedSpaceFactor;
 #endif
 
@@ -22,7 +22,7 @@ uniform sampler2D depthtex1;
 uniform mat4 gbufferProjection;
 #endif
 
-#if defined WATER_FOG || defined VL || defined REFRACTION || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined WATER_FOG || defined VL || defined REFRACTION || (defined DDA_FOG && defined VX_SUPPORT)
 uniform sampler2D depthtex0;
 uniform int isEyeInWater;
 uniform float frameTimeCounter;
@@ -35,7 +35,7 @@ uniform ivec2 eyeBrightnessSmooth;
 uniform float timeBrightness, wetness;
 #endif
 
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
 uniform sampler2D noisetex;
 uniform int frameCounter;
 uniform vec3 cameraPosition;
@@ -65,10 +65,6 @@ uniform sampler2D shadowtex1, shadowcolor0;
 
 #endif
 
-#if defined LPV_FOG && defined VX_SUPPORT
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
-#endif
-
 // Global Variables //
 #if defined WATER_FOG || defined VL
 const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
@@ -90,11 +86,11 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #endif
 
 // Includes //
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
 #include "/lib/util/transformMacros.glsl"
 #endif
 
-#if defined WATER_FOG || defined VL || defined REFRACTION || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined WATER_FOG || defined VL || defined REFRACTION || (defined DDA_FOG && defined VX_SUPPORT)
 #include "/lib/util/ToView.glsl"
 #endif
 
@@ -119,11 +115,14 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #endif
 #endif
 
-#if defined LPV_FOG && defined VX_SUPPORT
+#if defined DDA_FOG && defined VX_SUPPORT
 #include "/lib/vx/voxelization.glsl"
+#include "/lib/vx/hybridLPV.glsl"
+#include "/lib/vx/blocklightColor.glsl"
+#include "/lib/vx/ddaLighting.glsl"
 #endif
 
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
 #include "/lib/atmosphere/volumetrics.glsl"
 #endif
 
@@ -168,7 +167,7 @@ void main() {
     }
     #endif
 
-    #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+    #if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
     if (isEyeInWater != 2) {
         float dither = texture2D(noisetex, gl_FragCoord.xy / 512.0).b;
         #ifdef TAA
@@ -192,7 +191,7 @@ void main() {
 // Varyings //
 out vec2 texCoord;
 
-#if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+#if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
 flat out float closedSpaceFactor;
 
 uniform sampler2D depthtex0;
@@ -232,7 +231,7 @@ void main() {
     texCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
     gl_Position = ftransform();
 
-    #if defined VL || (defined LPV_FOG && defined VX_SUPPORT)
+    #if defined VL || (defined DDA_FOG && defined VX_SUPPORT)
     closedSpaceFactor = getClosedSpaceFactor();
     #endif
 }

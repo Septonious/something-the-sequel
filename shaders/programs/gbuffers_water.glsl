@@ -303,6 +303,7 @@ uniform mat4 gbufferModelViewInverse;
 // Attributes //
 attribute vec4 at_tangent;
 attribute vec4 mc_Entity;
+#include "/lib/vx/ddaShapeIds.glsl"
 
 // Includes //
 #ifdef TAA
@@ -332,7 +333,7 @@ void main() {
 	viewDistance = length(gl_ModelViewMatrix * gl_Vertex);
 	#endif
 
-    mat = int(mc_Entity.x + 0.5);
+    mat = ddaBaseMaterial(int(mc_Entity.x + 0.5));
 
 	//Position
 	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;

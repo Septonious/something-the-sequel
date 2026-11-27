@@ -14,16 +14,18 @@ uniform float viewWidth, viewHeight;
 const bool shadowHardwareFiltering0 = true;
 const int noiseTextureResolution = 512;
 const float shadowDistanceRenderMul = 1.0;
+// Iris safe-zone box: half capture width + 8 blocks (world-grid phase
+// and block-model padding). Keep all voxel cells, cull outside the box.
 #if VOXEL_VOLUME_SIZE == 128
-const float voxelDistance = 64.0;
+const float voxelDistance = 72.0;
 #elif VOXEL_VOLUME_SIZE == 192
-const float voxelDistance = 96.0;
+const float voxelDistance = 104.0;
 #elif VOXEL_VOLUME_SIZE == 256
-const float voxelDistance = 128.0;
+const float voxelDistance = 136.0;
 #elif VOXEL_VOLUME_SIZE == 384
-const float voxelDistance = 192.0;
-#else
-const float voxelDistance = 256.0;
+const float voxelDistance = 200.0;
+#elif VOXEL_VOLUME_SIZE == 512
+const float voxelDistance = 264.0;
 #endif
 const float wetnessHalflife = 128.0;
 
@@ -47,7 +49,15 @@ const int colortex10Format = R11F_G11F_B10F;
 
 /*
 const int colortex12Format = RG16F;
+const int colortex13Format = RGBA32F;
+const int colortex14Format = RGBA32F;
+const int colortex15Format = RGBA32F;
 */
+
+const bool colortex13Clear = true;
+const bool colortex14Clear = true;
+const vec4 colortex13ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+const vec4 colortex14ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 
 // Includes //
 #if MC_VERSION >= 11200

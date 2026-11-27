@@ -197,7 +197,7 @@ screen.AMBIENT_N=Shadow (Night)
 screen.WEATHER_COLOR=Rain Color
 screen.MINLIGHT=Cave Lighting
 screen.BLOCKLIGHT_COLOR=Vanilla Blocklight Color
-screen.LPV_COLOR=Multicolored Blocklight Color
+screen.EMITTER_COLOR=Multicolored Blocklight Color
 screen.GLSP=Glow Lichen, Sea Pickle
 screen.BS=Brewing Stand
 screen.TLCF=Torch, Lantern, etc
@@ -408,9 +408,118 @@ screen.OTHER=Other
 option.WAVING_PLANTS=Waving Plants
 option.WAVING_LEAVES=Waving Leaves
 
-option.FLOODFILL_BRIGHTNESS=Colored Light Brightness
-option.FLOODFILL_RADIUS=Colored Light Spread
-screen.LPV_FOG_CONFIG=Light Contribution to Volumetric Fog
-option.LPV_FOG=Light Contribution to Volumetric Fog
-option.LPV_FOG_STRENGTH=Light Fog Strength
-option.LPV_FOG.comment=Samples the same propagated colored-light volume as surface lighting.
+option.DDA_BRIGHTNESS=Colored Light Brightness
+option.DDA_LIGHT_RANGE=Direct Light Range
+option.DDA_LIGHT_BUDGET=Maximum Rays per Sample
+option.DDA_SHAPE_LOD_DISTANCE=Detailed Shape Distance
+option.DDA_SHAPE_LOD_DISTANCE.comment=Distance at which analytic occluders use exact grouped bounds. Visibility is preserved.
+option.DDA_DEBUG=Voxel Capture Debug
+value.DDA_DEBUG.0=Off
+value.DDA_DEBUG.1=Inside Surface
+value.DDA_DEBUG.2=Outside Surface
+value.DDA_DEBUG.3=Direct Light Only
+value.DDA_DEBUG.4=Profile: No Ray Tracing
+value.DDA_DEBUG.5=Profile: No Direct Lighting
+value.DDA_DEBUG.6=Profile: No Preparation
+value.DDA_DEBUG.7=Profile: No Voxel Writes
+option.DDA_DEBUG.comment=Magenta: uncaptured or air; red: opaque; yellow: emitter; green: pass-through; blue: outside volume. Direct Light Only excludes vanilla, sun, and ambient from terrain shading. Profile modes intentionally disable successive stages; they are not normal visual settings.
+screen.DDA_FOG_CONFIG=Light Contribution to Volumetric Fog
+option.DDA_FOG=Light Contribution to Volumetric Fog
+option.DDA_FOG_STRENGTH=Light Fog Strength
+option.DDA_FOG.comment=Traces the same direct hard-shadow lighting as surfaces. Experimental; expensive.
+
+option.DDA_CAPTURE_ALL=Full Shadow-Pass Capture
+
+option.DDA_GROUP_LIGHTS=Clustered Area Lights
+option.DDA_GROUP_LIGHTS.comment=Approximate dense homogeneous rectangular emitter patches with weighted representative rays. Off retains individual block lighting.
+option.DDA_GROUP_DISTANCE=Minimum Cluster Distance
+option.DDA_GROUP_DISTANCE.comment=Lower values group nearby emitters more aggressively. Higher values preserve more individual lighting.
+
+option.DDA_DEFERRED=Direct Lighting Pipeline
+value.DDA_DEFERRED.0=Forward (reference)
+value.DDA_DEFERRED.1=Deferred Full Resolution
+value.DDA_DEFERRED.2=Deferred Adaptive (2x2)
+option.DDA_DEFERRED.comment=Full resolution preserves per-pixel rays. Adaptive modes reconstruct direct lighting only on compatible receiver planes; thin shadows may be approximated.
+
+option.DDA_TRACE_VOLUME=DDA Traced Volume
+option.DDA_TRACE_VOLUME.comment=Percentage of the full voxel volume used for accurate DDA receiver lighting. Outer region uses LPV diffusion, with an eight-block transition. 100% disables the hybrid LPV.
+value.DDA_TRACE_VOLUME.10=10%
+value.DDA_TRACE_VOLUME.25=25%
+value.DDA_TRACE_VOLUME.50=50%
+value.DDA_TRACE_VOLUME.75=75%
+value.DDA_TRACE_VOLUME.100=100% (DDA Only)
+option.DDA_LPV_BRIGHTNESS=Outer LPV Brightness
+
+option.DDA_LPV_STRIDE=Outer LPV Cell Size
+value.DDA_LPV_STRIDE.1=1 Block (Full)
+value.DDA_LPV_STRIDE.2=2 Blocks (Fast)
+option.DDA_LPV_STRIDE.comment=2-block diffusion uses one eighth as many LPV cells while retaining the full world-space lighting volume. Distant shadow detail and brightness can differ.
+
+profile.DDA_FAST=DDA Fast (Regional, Adaptive)
+profile.DDA_FAST.comment=Regional emitter selection, adaptive 4x4 lighting, four area samples and guarded capture. May approximate lights and show sample banding.
+
+option.DDA_REGIONAL_LIGHTS=Light Selection
+value.DDA_REGIONAL_LIGHTS.0=Per-Pixel (Quality)
+value.DDA_REGIONAL_LIGHTS.1=Regional (Fast)
+option.DDA_REGIONAL_LIGHTS.comment=Fast: all lights in regions with up to eight candidates, otherwise four weighted representatives per world-aligned 4-block region. Exact ray visibility but approximate light selection. Quality: existing ray budget and optional emitter clustering.
+option.DDA_GLASS_STRENGTH=Stained Glass Tint Strength
+option.DDA_GLASS_STRENGTH.comment=Filters the source color. Higher settings give more saturated tint and stronger absorption.
+profile.DDA_QUALITY=DDA Quality (16 Rays, Deferred)
+profile.DDA_QUALITY.comment=Exact emitter selection, full-resolution deferred lighting, sixteen area samples and full capture. Very expensive.
+
+option.DDA_CACHE_INTERVAL=Light Search Interval
+option.DDA_CACHE_INTERVAL.comment=Regional cache: Near Every Frame + Outer 1/8 updates the central column and one of eight outer columns each frame. Other modes refresh uniformly. Outer new lights may take up to seven additional frames to appear. Blockers update every frame. Quality mode always searches every frame.
+value.DDA_CACHE_INTERVAL.1=Every Frame
+value.DDA_CACHE_INTERVAL.2=Every 2 Frames
+value.DDA_CACHE_INTERVAL.4=Every 4 Frames
+value.DDA_CACHE_INTERVAL.8=Near Every Frame + Outer 1/8
+
+option.DDA_MIN_CONTRIBUTION=Minimum Direct Light Contribution
+option.DDA_MIN_CONTRIBUTION.comment=Rejects very faint rays before tracing in regional mode. Zero disables approximation.
+option.DDA_LPV_SPARSE=Sparse Outer LPV
+option.DDA_LPV_SPARSE.comment=Skips diffusion where the previous 4x4x4 LPV neighborhood is provably dark.
+value.DDA_LPV_SPARSE.0=Off
+value.DDA_LPV_SPARSE.1=On
+
+value.DDA_DEFERRED.3=Deferred Adaptive (4x4)
+option.DDA_SOFT_SAMPLES=Block Light Soft Shadow Samples
+value.DDA_SOFT_SAMPLES.0=Hard Shadows
+value.DDA_SOFT_SAMPLES.4=4 (Fast)
+value.DDA_SOFT_SAMPLES.8=8 (Balanced)
+value.DDA_SOFT_SAMPLES.16=16 (Quality)
+option.DDA_SOFT_SAMPLES.comment=Zero disables soft shadows. With Continuous Soft Shadows enabled, other values set the fallback ray count; otherwise they set the fixed area-light sample count.
+option.DDA_SOFT_RADIUS=Block Light Emitter Radius
+option.DDA_SOFT_RADIUS.comment=Half extent of the sampled emitting volume in blocks.
+
+profile.DDA_PERFORMANCE=DDA Performance (Adaptive, Hard Shadows)
+profile.DDA_PERFORMANCE.comment=Padded safe-zone capture and 4x4 direct-light reconstruction, with hard shadows. Use to isolate the screen-grid optimization.
+
+profile.DDA_FULL_CAPTURE=DDA Full Capture (Diagnostic)
+profile.DDA_FULL_CAPTURE.comment=Same 8-sample adaptive lighting as HIGH, but disables all directional shadow culling. Use to diagnose missing captured geometry.
+
+option.DDA_CAPTURE_ALL.comment=Off: Iris safe-zone culling protects the entire voxel volume plus an 8-block pad. On: disable directional shadow culling everywhere, for capture diagnostics.
+
+option.DDA_CAPTURE_INDEX=Sparse Voxel Index
+value.DDA_CAPTURE_INDEX.0=Off
+value.DDA_CAPTURE_INDEX.1=On
+option.DDA_CAPTURE_INDEX.comment=Mark captured bricks during voxelization; skip empty brick scans. Disable to compare capture overhead.
+option.DDA_CONTINUOUS_SOFT=Continuous Soft Shadows
+option.DDA_CONTINUOUS_SOFT.comment=Integrate projected blocker intervals on finite emitter lines. Disabling restores sampled area visibility.
+
+option.DDA_CONTINUOUS_LINES=Continuous Shadow Quality
+value.DDA_CONTINUOUS_LINES.0=Single Line (Fast)
+value.DDA_CONTINUOUS_LINES.1=Adaptive (Balanced)
+value.DDA_CONTINUOUS_LINES.2=Two Lines (Quality)
+value.DDA_CONTINUOUS_LINES.3=2D Silhouettes (Experimental)
+value.DDA_CONTINUOUS_LINES.4=Conditioned Continuous (Default)
+option.DDA_CONTINUOUS_LINES.comment=Adaptive uses one line for lava and portals, two for other lights. 2D Silhouettes integrates projected opaque polygons on a finite source; complex geometry and stained glass fall back to line integration. Experimental supports eight silhouettes. Conditioned Continuous reduces parallel-edge discontinuities without polygon arrays.
+
+profile.DDA_BALANCED=DDA Balanced (Lines)
+
+option.DDA_STABLE_RESOLVE=Stable Resolve (Experimental)
+option.DDA_STABLE_RESOLVE.comment=Blend uncertain compatible screen-grid samples with fresh per-pixel lighting. May reduce reconstruction discontinuities but is substantially more expensive. Off by default.
+
+option.DDA_REGION_BLEND=Smooth Regional Light Boundaries
+option.DDA_REGION_BLEND.comment=Crossfades truncated light lists in a narrow world-space band. No additional emitter searches. May trace more cached lights near region boundaries.
+profile.DDA_SHARP=DDA Sharp (2x2, Smooth Regions)
+profile.DDA_SHARP.comment=Higher-resolution adaptive lighting and smooth cached-region transitions; useful for fine shadow edges and emissive arrays.

@@ -4,8 +4,15 @@
 #endif
 #endif
 
+#if defined VX_SUPPORT && !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER
+#include "/lib/vx/hybridLPV.glsl"
+#endif
 vec3 directLighting = vec3(0.0);
 vec3 occludableLighting = vec3(0.0);
+#if defined GBUFFERS_TERRAIN && defined DDA_DEFER_ACTIVE
+vec4 ddaPositionData = vec4(0.0);
+vec4 ddaSurfaceData = vec4(0.0);
+#endif
 
 // Material shading entry: keep its energy/emission math when altering occluder IDs.
 void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in vec3 worldPos, in vec3 newNormal, inout vec3 shadow, in vec2 lightmap, 
@@ -29,26 +36,62 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     NoL = pow(NoL, 1.0 + float(subsurface > 0.5) * 0.5);
     #endif
 
-    // Vanilla block light remains the fallback outside the LPV domain and on non-LPV render paths.
+    // Vanilla block light remains the fallback outside the DDA domain and on unsupported render paths.
     float blockLightMap = pow6(lightmap.x * lightmap.x) * 2.0 + max(lightmap.x - 0.05, 0.0);
     blockLightMap *= blockLightMap * 0.5;
     vec3 blockLighting = blockLightCol * blockLightMap;
+    vec3 tracedBlockLighting = vec3(0.0);
     #ifdef OVERWORLD
     blockLighting *= 1.0 - pow4(lightmap.y) * 0.75;
     #endif
 
-    // Historical LPV surface lighting: sample the propagated color in front of the surface.
-    #if !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT
+    // Direct lighting is evaluated at the actual interpolated surface, not the
+    // jittered depth reconstruction or a filtered voxel lighting texture.
+    #if !defined GBUFFERS_BASIC && !defined GBUFFERS_WATER && !defined GBUFFERS_TEXTURED && !defined DH_TERRAIN && !defined DH_WATER && defined VX_SUPPORT && DDA_DEBUG < 5
+    #ifdef GBUFFERS_HAND
     vec3 voxelPos = worldToVoxel(worldPos);
-    float floodfillFade = clamp(maxOf(abs(worldPos) / (voxelVolumeSize * 0.5)), 0.0, 1.0);
-    if (isInsideVoxelVolume(voxelPos) && emissionMask < 0.001) {
-        vec3 voxelSamplePos = clamp((voxelPos + worldNormal) / voxelVolumeSize, 0.0, 1.0);
-        vec3 lightVolume = (frameCounter & 1) == 0 ? texture3D(floodfillSamplerCopy, voxelSamplePos).rgb : texture3D(floodfillSampler, voxelSamplePos).rgb;
-        vec3 voxelLighting = pow(max(lightVolume, vec3(0.0)), vec3(1.0 / FLOODFILL_RADIUS));
-        #ifdef GBUFFERS_ENTITIES
-        voxelLighting += pow16(lightmap.x) * blockLightCol;
+    #else
+    vec3 voxelPos = worldToVoxel(ddaWorldPosition);
+    #endif
+    vec3 geometryNormal = normalize(mat3(gbufferModelViewInverse) * normal);
+    #if (DDA_DEBUG == 1 || DDA_DEBUG == 2) && defined GBUFFERS_TERRAIN
+    // Mode 1: material capture just inside the drawn face. Mode 2: receiver
+    // cell outside the face (red = blocked). No lighting or normal maps.
+    vec3 diagnosticPos = voxelPos + geometryNormal * (DDA_DEBUG == 1 ? -0.01 : 0.002);
+    ivec3 diagnosticCell = ivec3(floor(diagnosticPos));
+    vec3 diagnostic = vec3(0.0, 0.0, 0.3);
+    if (ddaValid(diagnosticCell)) {
+        uint code = texelFetch(voxelSampler, diagnosticCell, 0).r;
+        diagnostic = code == 0u ? vec3(1.0, 0.0, 1.0) :
+            (ddaBlocked(diagnosticCell) ? vec3(1.0, 0.12, 0.05) :
+             (maxOf(ddaEmission(code)) > 0.0 ? vec3(1.0, 0.85, 0.0) : vec3(0.05, 0.8, 0.25)));
+    }
+    albedo.rgb = diagnostic; directLighting = pow(diagnostic, vec3(2.2)); occludableLighting = vec3(0.0); return;
+    #endif
+    float domain = ddaDomainWeight(voxelPos);
+    #if DDA_DEBUG == 3 && defined GBUFFERS_TERRAIN
+    vec3 directOnly = ddaLighting(voxelPos, geometryNormal, subsurface > 0.0 ? 1.0 : 0.0, true) * DDA_BRIGHTNESS;
+    albedo.rgb = pow(max(directOnly, vec3(0.0)), vec3(1.0 / 2.2));
+    directLighting = directOnly; occludableLighting = vec3(0.0); return;
+    #endif
+    #if DDA_TRACE_VOLUME < 100
+    if (domain < 1.0 && isInsideVoxelVolume(voxelPos) && emissionMask < 0.001) {
+        blockLighting = mix(blockLighting, hybridLPV(voxelPos,geometryNormal)*DDA_LPV_BRIGHTNESS,hybridLPVWeight(voxelPos));
+    }
+    #endif
+    if (domain > 0.0) {
+        #if defined GBUFFERS_TERRAIN && defined DDA_DEFER_ACTIVE
+        // A zero conservative region count proves no emitter can contribute.
+        ivec3 region = ivec3(floor(voxelPos + geometryNormal * 0.002)) >> 3;
+        if (isInsideVoxelVolume(vec3(region * 8)) && texelFetch(ddaLocalSampler, ivec3(region.x,region.y*33,region.z),0).r != 0u) {
+            ddaPositionData = vec4(voxelPos, gl_FragCoord.z);
+            ddaSurfaceData = vec4(pow(albedo.rgb, vec3(2.2)) * (1.0-metalness) * vanillaDiffuse * (DDA_BRIGHTNESS * domain), ddaEncodeNormal(geometryNormal, subsurface > 0.0));
+        }
+        #else
+        vec3 directBlock = ddaLighting(voxelPos, geometryNormal, subsurface > 0.0 ? 1.0 : 0.0, true);
+        tracedBlockLighting = directBlock * (DDA_BRIGHTNESS * domain);
         #endif
-        blockLighting = mix(blockLighting, voxelLighting * FLOODFILL_BRIGHTNESS, (1.0 - floodfillFade * floodfillFade) * 0.95);
+        blockLighting *= 1.0 - domain;
     }
     #endif
 
@@ -214,6 +257,9 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
     //Night vision
     // sceneLighting += nightVision * vec3(0.2, 0.3, 0.2);
 
+    // Traced visibility is already geometric; do not darken direct light a second time.
+    vec3 tracedDiffuse = pow(albedo.rgb, vec3(2.2)) * (1.0 - metalness) * tracedBlockLighting * vanillaDiffuse;
+
     //Vanilla AO
     #if AO_TYPE == 0
     float aoMixer = (1.0 - vanillaAo) * (1.0 - blockLightMap) * (1.0 - emissionMask) * (1.0 - subsurface);
@@ -231,8 +277,8 @@ void gbuffersLighting(inout vec4 albedo, in vec3 screenPos, in vec3 viewPos, in 
          diffuseAlbedo *= sceneLighting + blockLighting + emission * EMISSION_STRENGTH + lightningFlash;
          diffuseAlbedo *= vanillaDiffuse;
 
-    vec3 finalColor = diffuseAlbedo + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
-    directLighting = albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
+    vec3 finalColor = diffuseAlbedo + tracedDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
+    directLighting = tracedDiffuse + albedo.rgb * (1.0 - metalness) * directSceneLighting * vanillaDiffuse + specularHighlight * SPECULAR_HIGHLIGHT_BRIGHTNESS * vanillaDiffuse;
     occludableLighting = albedo.rgb * (1.0 - metalness) * (sceneLighting - directSceneLighting + blockLighting
     ) * vanillaDiffuse;
 

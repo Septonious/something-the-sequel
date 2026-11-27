@@ -151,14 +151,43 @@ const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
 #define VL_MORNING_EVENING 1.50 //[0.00 0.10 0.20 0.30 0.40 0.50 0.60 0.70 0.80 0.90 1.00 1.10 1.20 1.30 1.40 1.50 1.60 1.70 1.80 1.90 2.00]
 
 
-// Regular colored block-light propagation (LPV). No ray tracing.
+// Direct colored block lighting with analytic hard shadows.
 #define VOXEL_VOLUME_SIZE 192 //[128 192 256 384 512]
-#define FLOODFILL_BRIGHTNESS 8.00 //[1.00 2.00 3.00 4.00 5.00 6.00 7.00 8.00 9.00 10.00]
-#define FLOODFILL_RADIUS 1.2 //[0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5]
+#define DDA_TRACE_VOLUME 25 //[10 25 50 75 100]
+#define DDA_LPV_STRIDE 2 //[1 2]
+#define DDA_LPV_BRIGHTNESS 8.00 //[2.00 4.00 6.00 8.00 10.00]
+#define DDA_MIN_CONTRIBUTION 0.0005 //[0.0000 0.0005 0.0010 0.0020]
+#define DDA_LPV_SPARSE 1 //[0 1]
+#define DDA_BRIGHTNESS 3.00 //[1.00 2.00 3.00 4.00 5.00 6.00 8.00]
+#define DDA_LIGHT_RANGE 16 //[8 12 16]
+#define DDA_REGIONAL_LIGHTS 1 //[0 1]
+//#define DDA_REGION_BLEND
+#define DDA_CACHE_INTERVAL 8 //[1 2 4 8]
+#define DDA_GLASS_STRENGTH 0.85 //[0.55 0.70 0.85 0.95 1.00]
+#define DDA_LIGHT_BUDGET 16 //[4 8 16 32]
+#define DDA_GROUP_LIGHTS
+#define DDA_DEFERRED 3 //[0 1 2 3]
+#define DDA_SOFT_SAMPLES 8 //[0 4 8 16]
+#define DDA_CAPTURE_INDEX 1 //[0 1]
+#define DDA_CONTINUOUS_SOFT
+//#define DDA_STABLE_RESOLVE
+#ifdef DDA_STABLE_RESOLVE
+#define DDA_RESOLVE_CONFIDENCE
+#endif
+#define DDA_CONTINUOUS_LINES 4 //[0 1 2 3 4]
+#define DDA_SOFT_RADIUS 0.42 //[0.18 0.30 0.42 0.48]
+#define DDA_GROUP_DISTANCE 3 //[2 3 4 6]
+#define DDA_SHAPE_LOD_DISTANCE 32 //[16 24 32 48 64]
+#define DDA_DEBUG 0 //[0 1 2 3 4 5 6 7]
+//#define DDA_CAPTURE_ALL
+// Iris discovers boolean options only from GLSL #ifdef/#ifndef references.
+// This option controls shadow.culling in shaders.properties, not GLSL execution.
+#ifdef DDA_CAPTURE_ALL
+#endif
 
 // Light contribution to volumetric fog
-//#define LPV_FOG
-#define LPV_FOG_STRENGTH 0.75 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
+//#define DDA_FOG
+#define DDA_FOG_STRENGTH 0.75 //[0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.50 3.00]
 
 //  Ambient Occlusion //
 #define AO_TYPE 1 //[0 1 2]
@@ -487,6 +516,9 @@ vec3 pow8(vec3 x) {return x*x*x*x*x*x*x*x;}
 
 #if defined IS_IRIS && !defined MC_OS_MAC
 #define VX_SUPPORT
+#endif
+#if defined VX_SUPPORT && DDA_DEFERRED > 0 && (DDA_DEBUG == 0 || DDA_DEBUG == 4)
+#define DDA_DEFER_ACTIVE
 #endif
 
 

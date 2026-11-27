@@ -29,6 +29,7 @@ const bool colortex2Clear = false;
 
 // Includes //
 #ifdef TAA
+#include "/lib/antialiasing/jitter.glsl"
 #include "/lib/util/reprojection.glsl"
 
 #define colortex1 colortex0

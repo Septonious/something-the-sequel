@@ -7,6 +7,9 @@
 // VSH Data //
 in vec4 color;
 in vec3 normal;
+#ifdef VX_SUPPORT
+in vec3 ddaWorldPosition;
+#endif
 in vec2 texCoord, lmCoord;
 
 // Uniforms //
@@ -35,7 +38,6 @@ uniform vec4 entityColor;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 #endif
 
 uniform mat4 gbufferProjectionInverse;
@@ -80,6 +82,7 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #ifdef VX_SUPPORT
 #include "/lib/vx/blocklightColor.glsl"
 #include "/lib/vx/voxelization.glsl"
+#include "/lib/vx/ddaLighting.glsl"
 #endif
 
 #include "/lib/lighting/lightning.glsl"
@@ -136,6 +139,9 @@ void main() {
 // VSH Data //
 out vec4 color;
 out vec3 normal;
+#ifdef VX_SUPPORT
+out vec3 ddaWorldPosition;
+#endif
 out vec2 texCoord, lmCoord;
 
 // Uniforms //
@@ -168,7 +174,10 @@ void main() {
 	//Position
 	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;
 
-	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
+	#ifdef VX_SUPPORT
+    ddaWorldPosition = position.xyz;
+    #endif
+    gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 
 	//TAA jittering
     #ifdef TAA

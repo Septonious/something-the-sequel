@@ -34,7 +34,7 @@ float eBS = eyeBrightnessSmooth.y / 240.0;
 
 // Main //
 // Fragment: atlas alpha/shadow color. Vertex: coordinate transforms and
-// shadow-pass LPV material capture.
+// shadow-pass integer material capture.
 void main() {
     vec4 albedo = texture2D(tex, texCoord) * color;
 
@@ -78,7 +78,7 @@ flat out int mat;
 #ifdef VX_SUPPORT
 uniform int renderStage;
 
-writeonly uniform uimage3D voxel_img;
+layout(r32ui) uniform uimage3D voxel_img;
 
 
 #if AO_TYPE == 0
@@ -140,8 +140,8 @@ void main() {
 	
     // Voxelization //
 	#ifdef VX_SUPPORT
-    // One submitted vertex per quad captures the block center, before shadow-map face rejection.
-    if ((gl_VertexID & 3) == 0) updateVoxelMap(uint(max(mc_Entity.x - 10000.0, 0.0)));
+    // All submitted vertices may capture; atomic priority makes duplicates deterministic.
+    updateVoxelMap(uint(max(mc_Entity.x - 10000.0, 0.0)));
 
 	#if AO_TYPE == 0
 	updateAoLattice();

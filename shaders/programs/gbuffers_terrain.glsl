@@ -1,12 +1,16 @@
 #define GBUFFERS_TERRAIN
 
 #include "/lib/common.glsl"
+#include "/lib/vx/ddaShapeIds.glsl"
 
 #ifdef FSH
 
 // VSH Data //
 in vec4 color;
 in vec3 normal;
+#ifdef VX_SUPPORT
+in vec3 ddaWorldPosition;
+#endif
 in vec2 texCoord, lmCoord;
 flat in int mat;
 
@@ -38,7 +42,6 @@ uniform vec4 lightningBoltPosition;
 uniform sampler2D texture, noisetex;
 
 #ifdef VX_SUPPORT
-uniform sampler3D floodfillSampler, floodfillSamplerCopy;
 
 #if AO_TYPE == 0
 in float aoFull;
@@ -89,6 +92,12 @@ vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.
 #ifdef VX_SUPPORT
 #include "/lib/vx/blocklightColor.glsl"
 #include "/lib/vx/voxelization.glsl"
+#ifdef DDA_DEFER_ACTIVE
+#include "/lib/vx/ddaDeferredData.glsl"
+uniform usampler3D ddaLocalSampler;
+#else
+#include "/lib/vx/ddaLighting.glsl"
+#endif
 #endif
 
 #include "/lib/lighting/lightning.glsl"
@@ -172,20 +181,46 @@ void main() {
     vec3 shadow = vec3(0.0);
     gbuffersLighting(albedo, screenPos, viewPos, worldPos, newNormal, shadow, lightmap, NoU, NoL, NoE, subsurface, emission, smoothness, parallaxShadow, metalness, f0);
 
-    /* RENDERTARGETS: 0 */
     gl_FragData[0] = albedo;
-
-    #if AO_TYPE > 0
-    /* RENDERTARGETS: 0,10,11 */
-    gl_FragData[1] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
-    gl_FragData[2] = vec4(foliage, 0.0, 0.0, albedo.a);
+    #ifdef DDA_DEFER_ACTIVE
+        #if AO_TYPE > 0
+            #if defined RAIN_PUDDLES && defined OVERWORLD
+            /* RENDERTARGETS: 0,10,11,7,13,14 */
+            gl_FragData[3] = vec4(puddle, 0.0, 0.0, 1.0);
+            gl_FragData[4] = ddaPositionData;
+            gl_FragData[5] = ddaSurfaceData;
+            #else
+            /* RENDERTARGETS: 0,10,11,13,14 */
+            gl_FragData[3] = ddaPositionData;
+            gl_FragData[4] = ddaSurfaceData;
+            #endif
+            gl_FragData[1] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
+            gl_FragData[2] = vec4(foliage, 0.0, 0.0, albedo.a);
+        #else
+            #if defined RAIN_PUDDLES && defined OVERWORLD
+            /* RENDERTARGETS: 0,7,13,14 */
+            gl_FragData[1] = vec4(puddle, 0.0, 0.0, 1.0);
+            gl_FragData[2] = ddaPositionData;
+            gl_FragData[3] = ddaSurfaceData;
+            #else
+            /* RENDERTARGETS: 0,13,14 */
+            gl_FragData[1] = ddaPositionData;
+            gl_FragData[2] = ddaSurfaceData;
+            #endif
+        #endif
+    #else
+        /* RENDERTARGETS: 0 */
+        #if AO_TYPE > 0
+        /* RENDERTARGETS: 0,10,11 */
+        gl_FragData[1] = vec4(occludableLighting * (1.0 - foliage * 0.35), albedo.a);
+        gl_FragData[2] = vec4(foliage, 0.0, 0.0, albedo.a);
+        #endif
+        #if defined RAIN_PUDDLES && defined OVERWORLD
+        vec4 puddleData = vec4(puddle, 0.0, 0.0, 1.0);
+        #include "/lib/pbr/puddleTarget.glsl"
+        #endif
     #endif
 
-
-    #if defined RAIN_PUDDLES && defined OVERWORLD
-    vec4 puddleData = vec4(puddle, 0.0, 0.0, 1.0);
-    #include "/lib/pbr/puddleTarget.glsl"
-    #endif
 }
 
 #endif
@@ -199,6 +234,9 @@ void main() {
 // VSH Data //
 out vec4 color;
 out vec3 normal;
+#ifdef VX_SUPPORT
+out vec3 ddaWorldPosition;
+#endif
 out vec2 texCoord, lmCoord;
 flat out int mat;
 
@@ -251,7 +289,7 @@ void main() {
 
     normal = normalize(gl_NormalMatrix * gl_Normal);
 
-    mat = int(mc_Entity.x + 0.5);
+    mat = ddaBaseMaterial(int(mc_Entity.x + 0.5));
 
     #if AO_TYPE == 0 && defined VX_SUPPORT
     aoFull = float(all(greaterThanEqual(abs(at_midBlock), vec3(31.0))));
@@ -265,7 +303,10 @@ void main() {
 	position.xyz = getWavingBlocks(position.xyz, istopv, lmCoord.y);
 	#endif
 
-	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
+	#ifdef VX_SUPPORT
+    ddaWorldPosition = position.xyz;
+    #endif
+    gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 
 	//TAA jittering
     #ifdef TAA
